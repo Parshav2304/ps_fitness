@@ -364,10 +364,10 @@ function App() {
   };
 
   const handleConfirmGenerateMealPlan = async () => {
-    // setShowMealPlanModal(false); // No longer needed
     setLoading(true);
+    setError(null);
     try {
-      const response = await fetch(`${API_URL}/nutrition/meal-plan-new`, {
+      const response = await fetch(`${API_URL}/nutrition/meal-plan`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -377,11 +377,13 @@ function App() {
       });
       if (response.ok) {
         const data = await response.json();
-        if (data.meal_plan) {
-          setMealPlan(data.meal_plan); // Restored
-          setSuccess('Meal plan generated!');
-          setTimeout(() => setSuccess(null), 2000);
-          // setActiveTab('nutrition'); // Removed to stay on current tab
+        // Backend returns the plan object directly (not nested under 'meal_plan')
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          setMealPlan(data);
+          setSuccess('Meal plan generated! 🍽️');
+          setTimeout(() => setSuccess(null), 3000);
+        } else {
+          setError('Received an empty meal plan. Try different settings.');
         }
       } else {
         const errorData = await response.json();
@@ -391,10 +393,12 @@ function App() {
         } else if (typeof errorMessage !== 'string') {
           errorMessage = JSON.stringify(errorMessage);
         }
-        setError(errorMessage || 'Failed to generate meal plan (Unknown Error)');
+        setError(errorMessage || 'Failed to generate meal plan');
+        setTimeout(() => setError(null), 5000);
       }
     } catch (err) {
-      setError('Network error');
+      setError('Network error. Is the backend running?');
+      setTimeout(() => setError(null), 5000);
     } finally {
       setLoading(false);
     }
@@ -476,8 +480,27 @@ function App() {
 
 
 
-  const handleDeleteFood = (id) => {
-    setFoodEntries(foodEntries.filter(entry => entry.id !== id));
+  const handleDeleteFood = async (id) => {
+    // Optimistically remove from UI immediately for fast feedback
+    setFoodEntries(prev => prev.filter(entry => entry.id !== id));
+
+    try {
+      const response = await fetch(`${API_URL}/food/log/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        // If delete failed on backend, re-fetch to restore correct state
+        console.error('Failed to delete food log from backend');
+        fetchTodayFoodLogs();
+      }
+      // On success: UI is already updated optimistically, no need to re-fetch
+    } catch (err) {
+      console.error('Error deleting food log:', err);
+      // Re-fetch to restore correct state on network error
+      fetchTodayFoodLogs();
+    }
   };
 
 

@@ -5,7 +5,7 @@ print("DEBUG: I AM THE CORRECT FILE - LOADED main.py")
 from fastapi import FastAPI, HTTPException, status, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from app.schemas.schemas import (
     UserInput, PredictionOutput, HealthStatus, ErrorResponse,
     ProgressEntryCreate, GoalCreate, WorkoutPlanRequest, MealPlanRequest, ChatMessage, ChatResponse,
@@ -36,7 +36,7 @@ from bson import ObjectId
 from datetime import datetime, timedelta
 import logging
 from contextlib import asynccontextmanager
-from typing import List, Optional
+
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -101,14 +101,7 @@ async def general_exception_handler(request, exc):
         content={"error": "Internal server error", "detail": str(exc)}
     )
 
-@app.get("/health", response_model=HealthStatus)
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "message": "Fitness AI API is running",
-        "version": "2.0.0"
-    }
+
 
 # ==================== AUTHENTICATION ENDPOINTS ====================
 
@@ -250,7 +243,7 @@ async def update_current_user_profile(user_update: UserUpdate, current_user: dic
     """Update current user profile"""
     try:
         db = get_database()
-        user_id = current_user["_id"]
+        user_id = current_user["id"]  # 'auth.py' stores id as string, _id is deleted
         
         # Filter out None values
         update_data = {k: v for k, v in user_update.dict().items() if v is not None}
@@ -262,15 +255,16 @@ async def update_current_user_profile(user_update: UserUpdate, current_user: dic
         
         # Update user in DB
         await db.users.update_one(
-            {"_id": user_id},
+            {"_id": ObjectId(user_id)},
             {"$set": update_data}
         )
         
         # Get updated user
-        updated_user = await db.users.find_one({"_id": user_id})
+        updated_user = await db.users.find_one({"_id": ObjectId(user_id)})
         
         # Convert _id to id string for response
         updated_user["id"] = str(updated_user["_id"])
+        del updated_user["_id"]
         
         # Format created_at for response
         if "created_at" in updated_user and not isinstance(updated_user["created_at"], str):
@@ -439,34 +433,6 @@ async def get_recent_sleep(current_user: dict = Depends(get_current_user)):
 
 # ==================== PROGRESS ENDPOINTS ====================
 
-@app.get("/", response_model=HealthStatus)
-async def root():
-    """Root endpoint - health check"""
-    return HealthStatus(
-        status="healthy",
-        message="PS Fitness API is running",
-        version="2.0.0"
-    )
-
-@app.get("/health", response_model=HealthStatus)
-async def health_check():
-    """Health check endpoint"""
-    prediction_service = get_prediction_service()
-    model_info = prediction_service.get_model_info()
-    
-    if model_info.get("loaded", False):
-        status_msg = "healthy"
-        message = "API is running and ML model is loaded"
-    else:
-        status_msg = "degraded"
-        message = "API is running but ML model is not loaded (using fallback)"
-    
-    return HealthStatus(
-        status=status_msg,
-        message=message,
-        version="2.0.0"
-    )
-
 @app.get("/model/info")
 async def get_model_info():
     """Get information about the loaded ML model"""
@@ -633,7 +599,7 @@ async def create_progress_entry(entry: ProgressEntryCreate, current_user_id: str
             "bmi": bmi,
             "bmr": bmr,
             "tdee": tdee,
-            "activity_level": activity_level,
+            "activity_level": entry.activity_level if hasattr(entry, 'activity_level') and entry.activity_level else 1.55,
             "fitness_plan": prediction.plan,
             "target_calories": prediction.target_calories,
             "macros_protein": prediction.macros.protein,
@@ -1018,6 +984,34 @@ async def get_recent_foods(current_user: dict = Depends(get_current_user)):
         logger.error(f"Error fetching recent foods: {str(e)}")
         return []
 
+@app.delete("/food/log/{log_id}")
+async def delete_food_log(log_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a specific food log entry by ID"""
+    try:
+        db = get_database()
+        user_id = current_user["id"]
+        
+        # Validate ObjectId
+        try:
+            oid = ObjectId(log_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid log ID")
+        
+        # Ensure the log belongs to the current user before deleting
+        log = await db.food_logs.find_one({"_id": oid, "user_id": user_id})
+        if not log:
+            raise HTTPException(status_code=404, detail="Food log not found or not authorized")
+        
+        await db.food_logs.delete_one({"_id": oid})
+        
+        return {"message": "Food log deleted successfully", "id": log_id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting food log: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error deleting food log: {str(e)}")
+
 @app.post("/progress/log", response_model=ProgressEntryResponse)
 async def log_progress(entry: ProgressEntryCreate, current_user: dict = Depends(get_current_user)):
     """Log a progress entry (weight, body fat, etc.)"""
@@ -1334,7 +1328,7 @@ async def chat_with_ai(message: ChatMessage, current_user: dict = Depends(get_cu
     """Chat with AI fitness assistant"""
     try:
         # Convert ObjectId to string
-        user_id = str(current_user.get('_id'))
+        user_id = str(current_user.get('id'))
         
         # Get additional context for analysis (Weight trend & Calorie consistency)
         db = get_database()
@@ -1349,10 +1343,11 @@ async def chat_with_ai(message: ChatMessage, current_user: dict = Depends(get_cu
             if last_7:
                 avg_calories = sum(e.get('calories_consumed', 0) for e in last_7) / len(last_7)
             
-            # Calculate weight change (last 30 days)
+            # Calculate weight change (last 30 days) - safely handle None values
             current_weight = recent_entries[0].get('weight')
             oldest_weight = recent_entries[-1].get('weight')
-            weight_change = current_weight - oldest_weight
+            if current_weight is not None and oldest_weight is not None:
+                weight_change = current_weight - oldest_weight
 
         user_context = {
             'username': current_user.get('username'),
@@ -1416,7 +1411,7 @@ async def chat_with_ai(message: ChatMessage, current_user: dict = Depends(get_cu
 async def clear_chat_history(current_user: dict = Depends(get_current_user)):
     """Clear user's chat history"""
     try:
-        user_id = str(current_user.get('_id'))
+        user_id = str(current_user.get('id'))
         db = get_database()
         
         # Delete all history for this user
@@ -1508,56 +1503,7 @@ async def export_user_data(format: str = "json", current_user_id: str = Depends(
             detail=f"Error exporting data: {str(e)}"
         )
 
-@app.post("/hydration/log", response_model=HydrationLogResponse)
-async def log_hydration(entry: HydrationLogCreate, current_user: dict = Depends(get_current_user)):
-    """Log water intake"""
-    try:
-        db = get_database()
-        user_id = current_user["id"]
-        
-        log_entry = entry.dict()
-        log_entry["user_id"] = user_id
-        if not log_entry.get("date"):
-            log_entry["date"] = datetime.utcnow().isoformat()
-            
-        # Add gamification (simple)
-        xp_gained = 5 # 5 XP per water log
-        log_entry["xp_earned"] = xp_gained
-        
-        # Save
-        result = await db.hydration_logs.insert_one(log_entry)
-        log_entry["id"] = str(result.inserted_id)
-        
-        # Update user XP
-        await GamificationService.add_xp(user_id, xp_gained)
-        
-        return HydrationLogResponse(**log_entry)
-        
-    except Exception as e:
-        logger.error(f"Error logging hydration: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error logging hydration: {str(e)}"
-        )
-
-@app.get("/hydration/today", response_model=List[HydrationLogResponse])
-async def get_hydration_today(current_user: dict = Depends(get_current_user)):
-    """Get today's hydration logs"""
-    try:
-        db = get_database()
-        user_id = current_user["id"]
-        today_str = datetime.utcnow().date().isoformat()
-        
-        cursor = db.hydration_logs.find({
-            "user_id": user_id,
-            "date": {"$regex": f"^{today_str}"}
-        })
-        logs = await cursor.to_list(length=100)
-        
-        return [HydrationLogResponse(**{**log, "id": str(log["_id"])}) for log in logs]
-    except Exception as e:
-        logger.error(f"Error fetching hydration: {str(e)}")
-        return []
+# NOTE: /hydration/log and /hydration/today are defined earlier (lines 290 and 363)
 
 # ==================== ADVANCED AGENT ENDPOINTS ====================
 

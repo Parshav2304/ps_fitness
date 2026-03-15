@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FaPaperclip, FaMicrophone, FaArrowUp, FaBolt, FaPlus } from 'react-icons/fa';
 
 const PSAICoach = ({ token, API_URL, user }) => {
     const fileInputRef = useRef(null);
     const messagesEndRef = useRef(null);
     const recognitionRef = useRef(null);
+    const handleSendRef = useRef(null); // Ref to always hold latest handleSend
 
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
@@ -65,7 +66,7 @@ const PSAICoach = ({ token, API_URL, user }) => {
                 setInput(transcript);
                 setIsListening(false);
                 // Auto-send voice input
-                handleSend(transcript);
+                handleSendRef.current(transcript);
             };
 
             recognitionRef.current.onerror = (event) => {
@@ -77,44 +78,9 @@ const PSAICoach = ({ token, API_URL, user }) => {
                 setIsListening(false);
             };
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally runs once; uses ref for handleSend
 
-    // Load History
-    useEffect(() => {
-        const fetchHistory = async () => {
-            try {
-                const res = await fetch(`${API_URL}/chat/history`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (res.ok) {
-                    const history = await res.json();
-                    // Backend returns chronological list of {role, content, timestamp}
-                    if (history.length > 0) {
-                        setMessages(history);
-                    } else {
-                        // Initial greeting if no history
-                        setMessages([{
-                            role: 'assistant',
-                            content: `Hi ${user?.username || 'Health Hero'}! I'm PS AI Coach. I can help with workouts, nutrition, and analyzing your progress. What's on your mind?`,
-                            timestamp: new Date().toISOString()
-                        }]);
-                    }
-                }
-            } catch (err) {
-                console.error("Failed to load history", err);
-            }
-        };
-        if (token) fetchHistory();
-    }, [token, API_URL, user]);
-
-    // Auto-scroll
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isTyping]);
-
-
-    const handleSend = async (text = input, imageData = null) => {
+    const handleSend = useCallback(async (text = input, imageData = null) => {
         if (!text.trim() && !imageData) return;
 
         // Optimistic UI Update (Only if it's text, image is handled in handleImageUpload)
@@ -151,7 +117,46 @@ const PSAICoach = ({ token, API_URL, user }) => {
         } finally {
             setIsTyping(false);
         }
-    };
+    }, [input, token, API_URL]);
+
+    // Keep ref up to date with latest handleSend
+    handleSendRef.current = handleSend;
+
+    // Load History
+    useEffect(() => {
+        const fetchHistory = async () => {
+            try {
+                const res = await fetch(`${API_URL}/chat/history`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const history = await res.json();
+                    // Backend returns chronological list of {role, content, timestamp}
+                    if (history.length > 0) {
+                        setMessages(history);
+                    } else {
+                        // Initial greeting if no history
+                        setMessages([{
+                            role: 'assistant',
+                            content: `Hi ${user?.username || 'Health Hero'}! I'm PS AI Coach. I can help with workouts, nutrition, and analyzing your progress. What's on your mind?`,
+                            timestamp: new Date().toISOString()
+                        }]);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load history", err);
+            }
+        };
+        if (token) fetchHistory();
+    }, [token, API_URL, user]);
+
+    // Auto-scroll
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, isTyping]);
+
+
+
 
     const handleNewChat = async () => {
         if (!window.confirm("Are you sure you want to clear your chat history and start a new session?")) return;
