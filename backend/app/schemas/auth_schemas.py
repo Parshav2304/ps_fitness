@@ -1,8 +1,8 @@
 """
 Authentication schemas
 """
-from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
+from typing import Optional, List
 import re
 
 class UserRegister(BaseModel):
@@ -78,11 +78,11 @@ class UserResponse(BaseModel):
     last_activity_date: Optional[str] = None
     
     # New Fields
-    achievements: list[str] = []
-    settings: dict = {"theme": "dark", "units": "metric", "notifications": True}
+    achievements: Optional[List[str]] = None
+    settings: dict = {}
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "507f1f77bcf86cd799439011",
                 "username": "johndoe",
@@ -100,6 +100,7 @@ class UserResponse(BaseModel):
                 "settings": {"theme": "dark", "units": "metric"}
             }
         }
+    )
 
 class UserUpdate(BaseModel):
     """User update schema"""
