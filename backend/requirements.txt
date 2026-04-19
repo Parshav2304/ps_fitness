@@ -36,6 +36,7 @@ httpx==0.26.0
 # Database - MongoDB
 motor==3.3.2
 pymongo==4.6.1
+certifi>=2023.11.17
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4

@@ -12,9 +12,6 @@ import WorkoutLogger from './components/WorkoutLogger';
 import NutritionLogger from './components/NutritionLogger';
 import MealPlanner from './components/MealPlanner';
 
-
-
-
 // API Configuration
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -28,244 +25,169 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-
-  // Dashboard states
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [workoutPlan, setWorkoutPlan] = useState(null);
-  // const [chatMessages, setChatMessages] = useState([]); // Removed
-  // const [chatInput, setChatInput] = useState(''); // Removed
+  
+  // Modals & UI State
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showWorkoutPreferences, setShowWorkoutPreferences] = useState(false);
-  const [workoutPreferences, setWorkoutPreferences] = useState({
-    location: 'gym',
-    daysPerWeek: 4,
-    isAthlete: false
-  });
-
-
-  // Workout tracking states (Global)
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [restTimeLeft, setRestTimeLeft] = useState(0);
 
-
-  const [hydration, setHydration] = useState(0); // Current hydration in ml
+  // Feature Data
+  const [workoutPlan, setWorkoutPlan] = useState(null);
+  const [hydration, setHydration] = useState(0);
+  const [workoutPreferences, setWorkoutPreferences] = useState({
+    days_per_week: 4,
+    location: 'gym',
+    is_athlete: false
+  });
 
   // ============================================
-  // AUTH LOGIC
+  // INITIALIZATION & SIDE EFFECTS
   // ============================================
-  const handleLoginSuccess = (userData, accessToken) => {
-    setToken(accessToken);
+  
+  // Backend Health Check
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/health/status`);
+        if (response.ok) {
+          setBackendConnected(true);
+        } else {
+          setBackendConnected(false);
+        }
+      } catch (err) {
+        setBackendConnected(false);
+      }
+    };
+    checkBackend();
+    const interval = setInterval(checkBackend, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Profile Loading
+  useEffect(() => {
+    if (token) {
+      fetchUserProfile();
+      fetchHydration();
+    }
+  }, [token]);
+
+  // Auth Handler
+  const handleLoginSuccess = (newToken, userData) => {
+    localStorage.setItem('token', newToken);
+    setToken(newToken);
     setUser(userData);
-    setSuccess('Welcome to PS Fitness!');
-    setTimeout(() => setSuccess(null), 3000);
+    setActiveTab('dashboard');
   };
-
-  // Workout Helpers
-  // Handlers moved to WorkoutLogger.js
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
     setToken(null);
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
     setActiveTab('dashboard');
-    setSuccess('Logged out successfully');
   };
 
-  const fetchUserProfile = useCallback(async () => {
+  // API Methods
+  const fetchUserProfile = async () => {
     if (!token) return;
     try {
-      const response = await fetch(`${API_URL}/auth/me`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+      setLoading(true);
+      const response = await fetch(`${API_URL}/api/auth/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
         setUser(data);
-      } else {
+      } else if (response.status === 401) {
         handleLogout();
       }
     } catch (err) {
-      console.error('Failed to fetch user profile:', err);
-    }
-  }, [token]);
-
-
-
-
-  const fetchHydration = useCallback(async () => {
-    if (!token) {
-      console.log("🌊 fetchHydration: No token, skipping");
-      return;
-    }
-    console.log("🌊 fetchHydration: Starting fetch...");
-    console.log("🌊 API_URL:", API_URL);
-    console.log("🌊 Token:", token ? "Present" : "Missing");
-
-    try {
-      const res = await fetch(`${API_URL}/hydration/today`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      console.log("🌊 Response status:", res.status);
-
-      if (res.ok) {
-        const data = await res.json();
-        console.log("🌊 Hydration data received:", data);
-        console.log("🌊 Setting hydration to:", data.total_ml || 0);
-        setHydration(data.total_ml || 0);
-        console.log("🌊 Hydration state updated");
-      } else {
-        console.error("🌊 Response not OK:", res.status, res.statusText);
-      }
-    } catch (e) {
-      console.error("🌊 Hydration fetch error:", e);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    if (token) {
-      setBackendConnected(true);
-      if (!user) {
-        fetchUserProfile();
-
-        
-        fetchHydration();
-      } else {
-        // Always refresh hydration when switching tabs or when component mounts with existing user
-        fetchHydration();
-      }
-    } else {
-      const checkBackend = async () => {
-        try {
-          const response = await fetch(`${API_URL}/`);
-          if (response.ok) setBackendConnected(true);
-        } catch (e) { setBackendConnected(false); }
-      };
-      checkBackend();
-    }
-  }, [token, user, fetchUserProfile, fetchHydration, activeTab]);
-
-  // Rest Timer Effect
-  useEffect(() => {
-    let interval;
-    if (restTimeLeft > 0) {
-      interval = setInterval(() => {
-        setRestTimeLeft(prev => {
-          if (prev <= 1) {
-            new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play().catch(e => console.log('Audio play failed', e));
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [restTimeLeft]);
-
-  // ============================================
-  // CORE FEATURES
-  // ============================================
-  const generateWorkoutPlan = async () => {
-    if (!token) return;
-    setShowWorkoutPreferences(true);
-  };
-
-  const handleGenerateWithPreferences = async () => {
-    setShowWorkoutPreferences(false);
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${API_URL}/workout/generate`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fitness_plan: ({
-            'weight_loss': 'Cut',
-            'muscle_gain': 'Bulk',
-            'maintain': 'Recomp',
-            'general_fitness': 'Lean'
-          })[user?.fitness_goal] || 'Lean',
-          days_per_week: workoutPreferences.daysPerWeek,
-          location: workoutPreferences.location,
-          is_athlete: workoutPreferences.isAthlete
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setWorkoutPlan(data);
-        setSuccess('Workout plan generated successfully!');
-        setActiveTab('workout');
-      } else {
-        const data = await response.json();
-        let errorMsg = 'Failed to generate workout plan';
-        if (typeof data.detail === 'string') errorMsg = data.detail;
-        else if (Array.isArray(data.detail)) errorMsg = data.detail.map(e => e.msg).join(', ');
-        else if (data.detail?.msg) errorMsg = data.detail.msg;
-        setError(errorMsg);
-      }
-    } catch (err) {
-      setError('Network error. Is the backend running?');
+      setError('Failed to load profile');
     } finally {
       setLoading(false);
     }
   };
 
-
-  const logWater = async () => {
+  const fetchHydration = useCallback(async () => {
     if (!token) return;
     try {
-      const response = await fetch(`${API_URL}/hydration/log`, {
+      const response = await fetch(`${API_URL}/api/nutrition/hydration`, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setHydration(data.amount_ml);
+      }
+    } catch (err) {
+      console.error("Hydration fetch failed:", err);
+    }
+  }, [token]);
+
+  const logWater = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/nutrition/hydration`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ amount_ml: 250 })
+      });
+      if (response.ok) {
+        fetchHydration();
+        setSuccess('Logged 250ml water 💧');
+        setTimeout(() => setSuccess(null), 3000);
+      }
+    } catch (err) {
+      setError('Failed to log water');
+    }
+  };
+
+  const generateWorkoutPlan = async () => {
+    setShowWorkoutPreferences(true);
+  };
+
+  const handleGenerateWithPreferences = async () => {
+    try {
+      setLoading(true);
+      setShowWorkoutPreferences(false);
+      const response = await fetch(`${API_URL}/api/workouts/plan`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          amount_ml: 250,
-          date: new Date().toISOString()
+          ...workoutPreferences,
+          fitness_plan: user?.fitness_goal || 'Lean'
         })
       });
-
       if (response.ok) {
         const data = await response.json();
-        setHydration(prev => prev + 250);
-        setSuccess(`Water logged! +${data.xp_earned} XP 💧`);
-        setTimeout(() => setSuccess(null), 3000);
-
-        // Refresh profile if leveled up
-        if (data.new_level) fetchUserProfile();
+        setWorkoutPlan(data);
+        setActiveTab('workout');
+        setSuccess('AI Workout Plan Generated!');
       }
     } catch (err) {
-      console.error("Error logging water:", err);
+      setError('Failed to generate workout plan');
+    } finally {
+      setLoading(false);
     }
   };
 
-
-
-
-
-  const generateMealPlan = () => {
-    if (!token) return;
+  const generateMealPlan = async () => {
     setActiveTab('meal_plan');
   };
 
-
-  const handleProfileUpdate = async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const updates = Object.fromEntries(formData.entries());
-
-    // Convert numbers
-    if (updates.weight) updates.weight = parseFloat(updates.weight);
-    if (updates.height) updates.height = parseFloat(updates.height);
-    if (updates.age) updates.age = parseInt(updates.age);
-
-    setLoading(true);
+  const handleProfileUpdate = async (updates) => {
     try {
-      const response = await fetch(`${API_URL}/auth/me`, {
+      setLoading(true);
+      const response = await fetch(`${API_URL}/api/auth/update`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -288,23 +210,6 @@ function App() {
       setLoading(false);
     }
   };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   // ============================================
   // RENDER SECTIONS
@@ -465,10 +370,6 @@ function App() {
     </div>
   );
 
-  // renderWorkout moved to WorkoutLogger component
-
-
-
   return (
     <div className="App">
       {!token || !user ? (
@@ -530,7 +431,7 @@ function App() {
                 setError={setError} 
               />
             )}
-                        {activeTab === 'progress' && <AnalyticsDashboard API_URL={API_URL} onProfileUpdate={fetchUserProfile} />}
+            {activeTab === 'progress' && <AnalyticsDashboard API_URL={API_URL} onProfileUpdate={fetchUserProfile} />}
             {activeTab === 'meal_plan' && <MealPlanner API_URL={API_URL} token={token} setSuccess={setSuccess} setError={setError} />}
             {activeTab === 'chat' && <PSAICoach token={token} API_URL={API_URL} user={user} />}
           </main>
@@ -558,7 +459,6 @@ function App() {
       {isEditingProfile && <EditProfileModal user={user} onClose={() => setIsEditingProfile(false)} onUpdate={handleProfileUpdate} />}
       {showSettings && <SettingsModal user={user} onClose={() => setShowSettings(false)} onEditProfile={() => { setIsEditingProfile(true); setShowSettings(false); }} />}
       {showWorkoutPreferences && <WorkoutPreferencesModal preferences={workoutPreferences} setPreferences={setWorkoutPreferences} onClose={() => setShowWorkoutPreferences(false)} onGenerate={handleGenerateWithPreferences} />}
-      {/* {showMealPlanModal && renderMealPlanModal()} Removed in favor of tab */}
 
       <OnboardingTour user={user} />
     </div>

@@ -5,6 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
 import os
 from typing import Optional
+import certifi
 
 # MongoDB connection settings
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
@@ -19,7 +20,8 @@ def get_database():
     global _client, _database
     if _client is None:
         print("DEBUG: Initializing database connection...")
-        _client = AsyncIOMotorClient(MONGODB_URL)
+        # Add tlsCAFile=certifi.where() to fix SSL handshake errors on cloud providers
+        _client = AsyncIOMotorClient(MONGODB_URL, tlsCAFile=certifi.where())
         _database = _client[DATABASE_NAME]
     return _database
 
@@ -27,7 +29,7 @@ def get_client():
     """Get MongoDB client instance"""
     global _client
     if _client is None:
-        _client = AsyncIOMotorClient(MONGODB_URL)
+        _client = AsyncIOMotorClient(MONGODB_URL, tlsCAFile=certifi.where())
     return _client
 
 async def close_database():
