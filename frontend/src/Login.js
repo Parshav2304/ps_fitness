@@ -163,11 +163,8 @@ function Login({ onLogin }) {
 
       // Success
       localStorage.setItem('token', data.access_token);
-      // We might need to fetch user profile if it's not returned in login
-      // Login endpoint usually just returns token. 
-      // The onLogin callback in App.js will likely fetch the profile.
-      onLogin(null, data.access_token);
-
+      // The onLogin callback in App.js expects (newToken, userData)
+      onLogin(data.access_token, data.user);
     } catch (err) {
       setError(err.message || 'An error occurred.');
     } finally {
