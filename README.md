@@ -10,6 +10,12 @@
 
 <br/>
 
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="PS Fitness Dashboard Mockup" width="800" style="border-radius: 8px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.1);" />
+</p>
+
+<br/>
+
 > **PS Fitness** is a next-generation web application designed to democratize elite-level fitness coaching. By combining advanced multimodal Generative AI with a rich, glassmorphic dark-mode interface, the platform translates raw health data into strictly personalized, actionable guidance.
 
 ---
@@ -109,14 +115,90 @@ npm start
 
 ---
 
-## 🤝 Contributing
-Contributions, issues, and feature requests are highly welcome! To contribute:
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+## 📐 System Architecture
+
+The diagram below outlines the end-to-end data flow and architectural layout of the platform, detailing how user inputs, database records, and machine learning components intersect:
+
+```mermaid
+graph TD
+    %% Define styles
+    classDef frontend fill:#1e1e2e,stroke:#cba6f7,stroke-width:2px,color:#cdd6f4;
+    classDef backend fill:#1e1e2e,stroke:#89b4fa,stroke-width:2px,color:#cdd6f4;
+    classDef db fill:#1e1e2e,stroke:#a6e3a1,stroke-width:2px,color:#cdd6f4;
+    classDef api fill:#1e1e2e,stroke:#f9e2af,stroke-width:2px,color:#cdd6f4;
+
+    subgraph Client ["Client Layer (React SPA)"]
+        UI["Glassmorphic UI Components"]
+        ChartJS["Chart.js (Sleep & Metrics)"]
+        Cache["In-Memory USDA/OFF Cache"]
+    end
+    class UI,ChartJS,Cache frontend;
+
+    subgraph Server ["Backend Services (FastAPI & Python)"]
+        API["FastAPI App (ASGI)"]
+        MLModel["FitnessMLModel (XGBoost)"]
+        Agent["FitnessAgent (BMR/TDEE Math)"]
+        Loader["joblib Model Loader"]
+    end
+    class API,MLModel,Agent,Loader backend;
+
+    subgraph Database ["Data Store"]
+        MongoDB[("MongoDB (User Telemetry)")]
+    end
+    class MongoDB db;
+
+    subgraph External ["External Services"]
+        USDA["USDA Food Database API"]
+        OFF["OpenFoodFacts API"]
+        Gemini["Google Gemini 2.5 Flash API"]
+    end
+    class USDA,OFF,Gemini api;
+
+    %% Data Flows
+    UI -->|HTTPS Requests| API
+    API -->|Reads/Writes| MongoDB
+    API -->|Invokes| MLModel
+    API -->|Orchestrates| Agent
+    MLModel -->|Loads plan_predictor.pkl| Loader
+    
+    %% API Integrations
+    API -->|UPC / Food Search| USDA
+    API -->|UPC / Food Search| OFF
+    API -->|Visual Food Logging / Chat| Gemini
+```
+
+---
+
+## 🧠 Machine Learning Engine
+
+Instead of relying solely on simple, static weight rules, **PS Fitness** incorporates a custom-trained **XGBoost Classifier** to suggest personalized fitness targets (`Cut`, `Bulk`, `Lean`, or `Recomp`).
+
+### Pipeline & Features
+The model acts on a 6-dimensional input vector representing user biometrics:
+- **Height** (cm)
+- **Weight** (kg)
+- **Age** (years)
+- **Gender** (Binary encoded: Female = `0`, Male = `1`)
+- **Activity Level** (Ordinal mapping from `0` to `4` for Sedentary up to Extra Active)
+- **Body Fat** (Percentage)
+
+### Training & Cross-Validation
+- **Algorithm**: Extreme Gradient Boosting Classifier (`xgb.XGBClassifier`) optimized with custom hyperparameters (`max_depth=5`, `learning_rate=0.1`, `n_estimators=200`, `subsample=0.9`).
+- **Validation**: Evaluated using **5-Fold Cross-Validation** to guarantee model robustness, checking accuracy and class-specific metrics (F1-score, Precision, Recall).
+- **Fallback Architecture**: Engineered with a robust dual-mode handler. If the pickled model (`plan_predictor.pkl`) is missing or fails to load, the backend automatically fails over to a rule-based BMI and activity multiplier algorithm, ensuring uninterrupted service.
+
+The training pipeline, visual analysis generation (confusion matrices, feature importance plots), and model exports are fully encapsulated in [train_model.py](file:///d:/###HELLOOOOO/ps_fitness/backend/app/ml/train_model.py).
+
+---
+
+## 🗺️ Project Roadmap
+
+- [ ] **Wearable API Sync**: Integrate Google Fit and Apple HealthKit for real-time sleep and workout sync.
+- [ ] **Mobile Client (Flutter)**: Build a dedicated cross-platform mobile app leveraging the FastAPI REST endpoints.
+- [ ] **Community Challenges**: Add social leaderboards, community workout routines, and shared macro plans.
+
+---
 
 ## 📝 License
-Distributed under the MIT License. See `LICENSE` for more information.
-"# trying" 
+
+Distributed under the MIT License. See `LICENSE` for more information. 
