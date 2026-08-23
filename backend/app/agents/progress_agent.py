@@ -5,6 +5,16 @@ from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import statistics
 
+def _parse_date(d) -> datetime:
+    if isinstance(d, datetime):
+        return d
+    if isinstance(d, str):
+        try:
+            return datetime.fromisoformat(d.replace('Z', '+00:00'))
+        except ValueError:
+            pass
+    return datetime.utcnow()
+
 class ProgressAgent:
     """Advanced agent for progress tracking and analysis"""
     
@@ -26,12 +36,12 @@ class ProgressAgent:
                 "prediction": None
             }
         
-        # Sort by date
-        sorted_entries = sorted(entries, key=lambda x: x.get("date", datetime.utcnow()))
+        # Sort by date safely
+        sorted_entries = sorted(entries, key=lambda x: _parse_date(x.get("date")))
         
         # Calculate weekly velocity
         weights = [e.get("weight", 0) for e in sorted_entries]
-        dates = [e.get("date", datetime.utcnow()) for e in sorted_entries]
+        dates = [_parse_date(e.get("date")) for e in sorted_entries]
         
         if len(weights) < 2:
             return {"velocity": 0, "trend": "insufficient_data"}
@@ -105,14 +115,13 @@ class ProgressAgent:
         if len(entries) < 3:
             return []
         
-        sorted_entries = sorted(entries, key=lambda x: x.get("date", datetime.utcnow()))
+        sorted_entries = sorted(entries, key=lambda x: _parse_date(x.get("date")))
         plateaus = []
         
         i = 0
         while i < len(sorted_entries) - 2:
             start_entry = sorted_entries[i]
             start_value = start_entry.get(metric, 0)
-            start_date = start_entry.get("date", datetime.utcnow())
             
             # Look ahead for plateau
             plateau_entries = [start_entry]
@@ -121,7 +130,6 @@ class ProgressAgent:
             while j < len(sorted_entries):
                 current_entry = sorted_entries[j]
                 current_value = current_entry.get(metric, 0)
-                current_date = current_entry.get("date", datetime.utcnow())
                 
                 # Check if change is minimal (within 1% or 0.5kg for weight)
                 if metric == "weight":
@@ -137,8 +145,8 @@ class ProgressAgent:
             
             # Check if plateau is significant
             if len(plateau_entries) >= 2:
-                plateau_days = (plateau_entries[-1].get("date", datetime.utcnow()) - 
-                               plateau_entries[0].get("date", datetime.utcnow())).days
+                plateau_days = (_parse_date(plateau_entries[-1].get("date")) - 
+                               _parse_date(plateau_entries[0].get("date"))).days
                 
                 if plateau_days >= threshold_days:
                     plateaus.append({

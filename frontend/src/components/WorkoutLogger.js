@@ -25,22 +25,26 @@ const WorkoutLogger = ({
     return [];
   });
   
-  // Track inputs per active exercise to easily handle Smart Defaults
-  const [currentInputs, setCurrentInputs] = useState({ weight: '', reps: '' });
+  // Track inputs per active exercise to handle weight, reps, and RPE
+  const [currentInputs, setCurrentInputs] = useState({ weight: '', reps: '', rpe: '8' });
 
   // Save to local storage automatically
   useEffect(() => {
     localStorage.setItem('currentWorkout', JSON.stringify(currentWorkout));
   }, [currentWorkout]);
 
-  // When selected exercise changes, check if we have previous data (Smart Defaults mock)
+  // When selected exercise changes, prep default values based on history or defaults
   useEffect(() => {
     if (selectedExercise) {
-      // In a real app we'd fetch this from the backend. 
-      // For now, we mock a previous record for UX.
-      setCurrentInputs({ weight: '20', reps: '10' }); 
+      const existingInCurrent = currentWorkout.find(ex => ex.id === selectedExercise.id);
+      if (existingInCurrent && existingInCurrent.sets.length > 0) {
+        const lastSet = existingInCurrent.sets[existingInCurrent.sets.length - 1];
+        setCurrentInputs({ weight: String(lastSet.weight), reps: String(lastSet.reps), rpe: String(lastSet.rpe || 8) });
+      } else {
+        setCurrentInputs({ weight: '60', reps: '10', rpe: '8' });
+      }
     }
-  }, [selectedExercise]);
+  }, [selectedExercise, currentWorkout]);
 
   const filteredExercises = EXERCISE_DATABASE.filter(ex => {
     const matchesSearch = ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()) ||
@@ -50,8 +54,24 @@ const WorkoutLogger = ({
   });
 
   const handleAddAndCompleteSet = () => {
-    const { weight, reps } = currentInputs;
+    const { weight, reps, rpe } = currentInputs;
     if (!weight || !reps || !selectedExercise) return;
+
+    const parsedWeight = parseFloat(weight);
+    const parsedReps = parseInt(reps);
+    const parsedRpe = parseFloat(rpe || 8);
+    
+    // Epley Formula for 1RM estimation: 1RM = weight * (1 + reps/30)
+    const estimated1RM = Math.round(parsedWeight * (1 + parsedReps / 30.0));
+
+    const newSet = {
+      id: Date.now(),
+      weight: parsedWeight,
+      reps: parsedReps,
+      rpe: parsedRpe,
+      estimated1RM,
+      completed: true
+    };
 
     setCurrentWorkout(prev => {
       const existingIdx = prev.findIndex(e => e.id === selectedExercise.id);
@@ -59,19 +79,18 @@ const WorkoutLogger = ({
         const updated = [...prev];
         updated[existingIdx] = {
           ...updated[existingIdx],
-          sets: [...updated[existingIdx].sets, { weight: parseFloat(weight), reps: parseInt(reps), id: Date.now(), completed: true }]
+          sets: [...updated[existingIdx].sets, newSet]
         };
         return updated;
       } else {
-        return [...prev, { ...selectedExercise, sets: [{ weight: parseFloat(weight), reps: parseInt(reps), id: Date.now(), completed: true }] }];
+        return [...prev, { ...selectedExercise, sets: [newSet] }];
       }
     });
 
-    // UX Feature: Auto-Rest Timer
+    // Auto-Rest Timer
     setShowRestTimer(true);
-    setRestTimeLeft(60); // 60s default rest
+    setRestTimeLeft(60);
 
-    // Haptic feedback if supported
     if (window.navigator && window.navigator.vibrate) {
        window.navigator.vibrate(50);
     }
@@ -87,8 +106,7 @@ const WorkoutLogger = ({
       }).filter(ex => ex.sets.length > 0);
     });
     
-    // Simulate Snackbar for undo (Mock logic)
-    setSuccess("Set deleted [UNDO]");
+    setSuccess("Set deleted");
     setTimeout(() => setSuccess(null), 3000);
   };
 
@@ -99,7 +117,9 @@ const WorkoutLogger = ({
     try {
       if (!token) return;
 
-      const response = await fetch(`${API_URL}/workout/log`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/workout/log` : `${API_URL}/api/workout/log`;
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

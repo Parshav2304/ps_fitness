@@ -78,6 +78,7 @@ async def undo_hydration_log(current_user: dict = Depends(get_current_user)):
         logger.error(f"Error undoing hydration: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/nutrition/hydration")
 @router.get("/hydration/today")
 async def get_hydration_today(current_user: dict = Depends(get_current_user)):
     """Get total water intake for today"""
@@ -94,7 +95,15 @@ async def get_hydration_today(current_user: dict = Depends(get_current_user)):
         
         total_ml = sum([log.get("amount_ml", 0) for log in logs])
         
-        return {"total_ml": total_ml, "logs_count": len(logs)}
+        # User's goal - default to 2500ml if not set
+        target_ml = current_user.get("hydration_goal", 2500)
+        
+        return {
+            "total_ml": total_ml, 
+            "target_ml": target_ml,
+            "percentage": round((total_ml / target_ml) * 100, 1) if target_ml > 0 else 0,
+            "logs_count": len(logs)
+        }
         
     except Exception as e:
         logger.error(f"Error fetching hydration: {str(e)}")
@@ -233,7 +242,7 @@ async def delete_food_log(log_id: str, current_user: dict = Depends(get_current_
 
 @router.post("/nutrition/meal-plan")
 @limiter.limit("5/minute")
-async def generate_meal_plan(request: Request, meal_request: MealPlanRequest = Depends(), current_user: dict = Depends(get_current_user)):
+async def generate_meal_plan(request: Request, meal_request: MealPlanRequest, current_user: dict = Depends(get_current_user)):
     """Generate a personalized meal plan (rate-limited: 5/min)"""
     try:
         if not meal_request.macros:
@@ -293,88 +302,4 @@ async def generate_grocery_list(request: Request, meal_plan: Dict = Body(...), c
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ==================== USDA API ENDPOINTS ====================
-
-@router.get("/api/foods/search")
-async def search_foods(query: str, page: int = 1, page_size: int = 25, current_user: dict = Depends(get_current_user)):
-    """Search for foods in USDA database"""
-    try:
-        if not query or len(query) < 2:
-            raise HTTPException(status_code=400, detail="Query must be at least 2 characters")
-        return USDAService.search_foods(query, page_size=page_size, page_number=page)
-    except HTTPException: raise
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/api/foods/{fdc_id}")
-async def get_food_by_id(fdc_id: int):
-    """Get detailed food information by USDA FDC ID"""
-    try:
-        food = USDAService.get_food_details(fdc_id)
-        if food: return food
-        raise HTTPException(status_code=404, detail="Food not found")
-    except HTTPException: raise
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/api/foods/barcode/{barcode}")
-async def lookup_barcode(barcode: str):
-    """Look up food by UPC/EAN barcode"""
-    try:
-        if not BarcodeService.validate_barcode(barcode):
-            raise HTTPException(status_code=400, detail="Invalid barcode format")
-        food = BarcodeService.lookup_barcode(barcode)
-        if food: return food
-        raise HTTPException(status_code=404, detail="Product not found in database")
-    except HTTPException: raise
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/api/foods/category/{category}")
-async def search_by_category(category: str, page_size: int = 25):
-    """Search foods by category"""
-    try:
-        return USDAService.search_by_category(category, page_size=page_size)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/api/foods/recent")
-async def get_recent_foods_usda(current_user: dict = Depends(get_current_user), limit: int = 20):
-    """Get user's recently logged foods format 2"""
-    # ... logic skipped ... existing route had two get_recent_foods with different signatures, 
-    # we kept the custom log based one. If we need favorites:
-    pass
-
-@router.get("/api/favorites")
-async def get_favorite_foods(current_user: dict = Depends(get_current_user)):
-    """Get user's favorite foods"""
-    try:
-        db = get_database()
-        user_id = str(current_user["id"])
-        cursor = db.favorite_foods.find({"user_id": user_id}).sort("added_date", -1)
-        favorites = await cursor.to_list(length=100)
-        favorite_foods = [{"id": fav.get("food_id"), "name": fav.get("food_name"), "nutrition": fav.get("nutrition"), "added_date": fav.get("added_date")} for fav in favorites]
-        return {"favorites": favorite_foods}
-    except Exception as e:
-         raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/api/favorites")
-async def add_favorite_food(food_data: Dict = Body(...), current_user: dict = Depends(get_current_user)):
-    try:
-        db = get_database()
-        user_id = str(current_user["id"])
-        existing = await db.favorite_foods.find_one({"user_id": user_id, "food_id": food_data.get("id")})
-        if existing: return {"message": "Food already in favorites", "already_exists": True}
-        
-        await db.favorite_foods.insert_one({"user_id": user_id, "food_id": food_data.get("id"), "food_name": food_data.get("name"), "nutrition": food_data.get("nutrition", {}), "added_date": datetime.utcnow().isoformat()})
-        return {"message": "Food added to favorites", "success": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.delete("/api/favorites/{food_id}")
-async def remove_favorite_food(food_id: str, current_user: dict = Depends(get_current_user)):
-    try:
-        db = get_database()
-        user_id = str(current_user["id"])
-        result = await db.favorite_foods.delete_one({"user_id": user_id, "food_id": food_id})
-        if result.deleted_count > 0: return {"message": "Food removed", "success": True}
-        raise HTTPException(status_code=404, detail="Favorite not found")
-    except HTTPException: raise
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+# Food Search and Favorites routes have been moved/consolidated

@@ -175,7 +175,7 @@ const AnalyticsDashboard = ({ API_URL, onProfileUpdate, hydration, refreshHydrat
                 }[userData.activity_level] || 1.55) : 1.55
             };
 
-            const res = await fetch(`${API_URL}/progress/log`, {
+            const res = await fetch(`${API_URL}/api/progress`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

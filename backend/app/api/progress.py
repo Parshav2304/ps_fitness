@@ -79,23 +79,65 @@ async def create_progress_entry(entry: ProgressEntryCreate, current_user_id: str
         bmi = fitness_agent.calculate_bmi(entry.weight, entry.height)
         
         user = await db.users.find_one({"_id": ObjectId(current_user_id)})
-        bmr = fitness_agent.calculate_bmr_mifflin_st_jeor(entry.weight, entry.height, 25, "male")
-        tdee = bmr * entry.activity_level if hasattr(entry, 'activity_level') else bmr * 1.55
         
-        user_input = UserInput(height=entry.height, weight=entry.weight, age=25, gender="male", activity_level=1.55, body_fat=entry.body_fat)
+        # Safe defaults and mappings from the retrieved user profile
+        age = user.get("age", 25) if user and user.get("age") else 25
+        gender = user.get("gender", "male") if user and user.get("gender") else "male"
+        gender_for_calc = gender.lower() if gender.lower() in ["male", "female"] else "male"
+        
+        def resolve_activity_multiplier(val) -> float:
+            if isinstance(val, (int, float)):
+                return float(val)
+            if not isinstance(val, str):
+                return 1.55
+            val_lower = val.lower().strip()
+            if "sedentary" in val_lower: return 1.2
+            elif "light" in val_lower: return 1.375
+            elif "moderate" in val_lower: return 1.55
+            elif "very" in val_lower: return 1.9
+            elif "active" in val_lower: return 1.725
+            return 1.55
+
+        activity_level = resolve_activity_multiplier(
+            entry.activity_level or (user.get("activity_level") if user else 1.55)
+        )
+        
+        bmr = fitness_agent.calculate_bmr_mifflin_st_jeor(entry.weight, entry.height, age, gender_for_calc)
+        tdee = bmr * activity_level
+        
+        user_input = UserInput(
+            height=entry.height,
+            weight=entry.weight,
+            age=age,
+            gender=gender_for_calc,
+            activity_level=activity_level,
+            body_fat=entry.body_fat
+        )
         prediction_service = get_prediction_service()
         prediction = prediction_service.predict(user_input)
         
         progress_doc = {
-            "user_id": current_user_id, "date": datetime.utcnow(), "weight": entry.weight, "height": entry.height,
-            "body_fat": entry.body_fat, "bmi": bmi, "bmr": bmr, "tdee": tdee, "activity_level": entry.activity_level if hasattr(entry, 'activity_level') and entry.activity_level else 1.55,
-            "fitness_plan": prediction.plan, "target_calories": prediction.target_calories, "macros_protein": prediction.macros.protein,
-            "macros_carbs": prediction.macros.carbs, "macros_fat": prediction.macros.fat, "notes": entry.notes
+            "user_id": current_user_id,
+            "date": datetime.utcnow(),
+            "weight": entry.weight,
+            "height": entry.height,
+            "body_fat": entry.body_fat,
+            "bmi": bmi,
+            "bmr": bmr,
+            "tdee": tdee,
+            "activity_level": activity_level,
+            "fitness_plan": prediction.plan,
+            "target_calories": prediction.target_calories,
+            "macros_protein": prediction.macros.protein,
+            "macros_carbs": prediction.macros.carbs,
+            "macros_fat": prediction.macros.fat,
+            "notes": entry.notes
         }
         
         result = await db.progress_entries.insert_one(progress_doc)
         return {"id": str(result.inserted_id), "message": "Progress entry created successfully", "date": progress_doc["date"].isoformat()}
     except Exception as e:
+        logger.error(f"Error creating progress entry: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/progress")
@@ -155,4 +197,41 @@ async def get_goals(current_user_id: str = Depends(get_current_user_id)):
             result.append({"id": str(goal["_id"]), "user_id": goal["user_id"], "goal_type": goal["goal_type"], "target_value": goal["target_value"], "current_value": goal["current_value"], "unit": goal["unit"], "deadline": goal["deadline"].isoformat() if goal.get("deadline") else None, "progress_percentage": round(progress, 2), "completed": goal["completed"]})
         return result
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/expenditure")
+async def get_expenditure_analysis(current_user_id: str = Depends(get_current_user_id)):
+    """Calculate MacroFactor-style dynamic TDEE expenditure & weight trend"""
+    try:
+        from app.services.expenditure_service import ExpenditureService
+        db = get_database()
+
+        # Fetch progress entries (weights)
+        weights_cursor = db.progress_entries.find({"user_id": current_user_id}).sort("date", 1)
+        weights = await weights_cursor.to_list(length=365)
+        weight_entries = [{"date": w.get("date", ""), "weight": w.get("weight", 0.0)} for w in weights]
+
+        # Fetch food logs (calories)
+        cals_cursor = db.food_logs.find({"user_id": current_user_id}).sort("date", 1)
+        cals = await cals_cursor.to_list(length=365)
+        cal_entries = [{"date": c.get("date", ""), "calories": c.get("calories", 0.0)} for c in cals]
+
+        smoothed_weights = ExpenditureService.calculate_weight_trend(weight_entries)
+        tdee_info = ExpenditureService.calculate_tdee(weight_entries, cal_entries)
+
+        # Get user profile for goal macro recommendation
+        user = await db.users.find_one({"_id": ObjectId(current_user_id)})
+        goal = user.get("fitness_goal", "Maintain Weight") if user else "Maintain Weight"
+        latest_weight = smoothed_weights[-1]["trend_weight"] if smoothed_weights else (user.get("weight", 70.0) if user else 70.0)
+
+        tdee_val = tdee_info["estimated_tdee"] if tdee_info else 2200
+        recommended_macros = ExpenditureService.calculate_macro_targets(tdee_val, goal, latest_weight)
+
+        return {
+            "weight_trends": smoothed_weights,
+            "tdee": tdee_info,
+            "recommended_macros": recommended_macros
+        }
+    except Exception as e:
+        logger.error(f"Expenditure calculation error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

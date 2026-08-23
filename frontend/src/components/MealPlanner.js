@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getApiUrl } from '../utils/api';
 
 const MealPlanner = ({ API_URL, token, setSuccess, setError }) => {
   const [mealPlanPreferences, setMealPlanPreferences] = useState({
@@ -14,7 +15,7 @@ const MealPlanner = ({ API_URL, token, setSuccess, setError }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/nutrition/meal-plan`, {
+      const response = await fetch(getApiUrl(API_URL, '/nutrition/meal-plan'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -26,7 +27,7 @@ const MealPlanner = ({ API_URL, token, setSuccess, setError }) => {
         const data = await response.json();
         if (data && typeof data === 'object' && Object.keys(data).length > 0) {
           setMealPlan(data);
-          setSuccess('Meal plan generated! 🍽️');
+          setSuccess('Meal plan generated');
           setTimeout(() => setSuccess(null), 3000);
         } else {
           setError('Received an empty meal plan. Try different settings.');
@@ -54,7 +55,7 @@ const MealPlanner = ({ API_URL, token, setSuccess, setError }) => {
     if (!mealPlan || !token) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/nutrition/grocery-list`, {
+      const res = await fetch(getApiUrl(API_URL, '/nutrition/grocery-list'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

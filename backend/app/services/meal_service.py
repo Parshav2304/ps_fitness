@@ -339,7 +339,8 @@ class MealService:
             if not available_meals: 
                 # Critical failure for this slot if no strict match found
                 # Fallback to a generic safe option to prevent crash, but warn
-                available_meals = MealService.MEALS.get(meal_time, [])[:1] # extremely basic fallback
+                db_key = 'snacks' if 'snack' in meal_type else meal_type
+                available_meals = MealService.MEALS.get(db_key, [])[:1] # extremely basic fallback
 
             if not available_meals: 
                 continue

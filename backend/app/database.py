@@ -20,8 +20,13 @@ def get_database():
     global _client, _database
     if _client is None:
         print("DEBUG: Initializing database connection...")
-        # Add tlsCAFile=certifi.where() to fix SSL handshake errors on cloud providers
-        _client = AsyncIOMotorClient(MONGODB_URL, tlsCAFile=certifi.where())
+        
+        # Only use TLS CA certifi wrapper for cloud Atlas connections (mongodb+srv)
+        client_kwargs = {}
+        if "mongodb+srv://" in MONGODB_URL:
+            client_kwargs["tlsCAFile"] = certifi.where()
+            
+        _client = AsyncIOMotorClient(MONGODB_URL, **client_kwargs)
         _database = _client[DATABASE_NAME]
     return _database
 
@@ -29,7 +34,10 @@ def get_client():
     """Get MongoDB client instance"""
     global _client
     if _client is None:
-        _client = AsyncIOMotorClient(MONGODB_URL, tlsCAFile=certifi.where())
+        client_kwargs = {}
+        if "mongodb+srv://" in MONGODB_URL:
+            client_kwargs["tlsCAFile"] = certifi.where()
+        _client = AsyncIOMotorClient(MONGODB_URL, **client_kwargs)
     return _client
 
 async def close_database():
@@ -51,3 +59,8 @@ async def init_db():
     await db.workout_plans.create_index([("user_id", 1), ("created_at", -1)])
     await db.meal_plans.create_index([("user_id", 1), ("created_at", -1)])
     await db.chat_history.create_index([("user_id", 1), ("created_at", -1)])
+    
+    # Telemetry and logging indexes for fast aggregation
+    await db.food_logs.create_index([("user_id", 1), ("date", 1)])
+    await db.hydration_logs.create_index([("user_id", 1), ("date", 1)])
+    await db.sleep_logs.create_index([("user_id", 1), ("date", -1)])

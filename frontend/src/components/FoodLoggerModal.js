@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FaTimes, FaBarcode, FaSearch } from 'react-icons/fa';
 import FoodSearchEnhanced from './FoodSearchEnhanced';
 import BarcodeScanner from './BarcodeScanner';
+import { getApiUrl } from '../utils/api';
 
 const FoodLoggerModal = ({ API_URL, onClose, onFoodLogged }) => {
     const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
@@ -43,7 +44,7 @@ const FoodLoggerModal = ({ API_URL, onClose, onFoodLogged }) => {
         };
 
         try {
-            const response = await fetch(`${API_URL}/food/log`, {
+            const response = await fetch(getApiUrl(API_URL, '/food/log'), {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

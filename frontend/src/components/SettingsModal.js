@@ -1,6 +1,19 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const SettingsModal = ({ user, onClose, onEditProfile }) => {
+  const [activeTheme, setActiveTheme] = useState('violet');
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('user-theme') || 'violet';
+    setActiveTheme(savedTheme);
+  }, []);
+
+  const handleThemeChange = (newTheme) => {
+    setActiveTheme(newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('user-theme', newTheme);
+  };
+
   return (
     <div className="modal-overlay" style={{
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -53,11 +66,39 @@ const SettingsModal = ({ user, onClose, onEditProfile }) => {
         {/* Settings Section */}
         <h3 style={{ marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>⚙️ Preferences</h3>
 
-        <div className="form-group" style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-            <span>🌙 Dark Mode</span>
-            <input type="checkbox" checked readOnly style={{ accentColor: 'var(--primary)' }} />
-          </label>
+        {/* Theme Preferences */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>🎨 UI Color Theme</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+            {[
+              { id: 'violet', name: 'Electric Violet', gradient: 'linear-gradient(135deg, #8b5cf6, #06b6d4)' },
+              { id: 'cyberpunk', name: 'Cyberpunk', gradient: 'linear-gradient(135deg, #ff007f, #00f0ff)' },
+              { id: 'nebula', name: 'Nebula Space', gradient: 'linear-gradient(135deg, #ec4899, #f43f5e)' }
+            ].map(theme => (
+              <button
+                key={theme.id}
+                onClick={() => handleThemeChange(theme.id)}
+                style={{
+                  background: theme.gradient,
+                  color: '#fff',
+                  border: activeTheme === theme.id ? '2px solid #fff' : '2px solid transparent',
+                  borderRadius: '12px',
+                  padding: '12px 8px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '0.85rem',
+                  textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+                  boxShadow: activeTheme === theme.id 
+                    ? '0 0 15px rgba(255,255,255,0.3)' 
+                    : '0 4px 10px rgba(0,0,0,0.15)',
+                  transition: 'all 0.2s ease',
+                  outline: 'none'
+                }}
+              >
+                {theme.name}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="form-group" style={{ marginBottom: '15px' }}>

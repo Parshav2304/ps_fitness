@@ -408,7 +408,17 @@ class AnalyticsAgent:
         """
         Correlate sleep duration/quality with workout volume.
         """
-        if not workout_logs or not sleep_logs: return []
+        if not workout_logs or not sleep_logs: 
+            return []
+        
+        insights = []
+        
+        # Sort sleep logs and check for a low sleep streak
+        sorted_sleep = sorted(sleep_logs, key=lambda x: x.get("date", ""))
+        recent_sleep_durations = [s.get("duration_hours", 8.0) for s in sorted_sleep[-3:]]
+        
+        if len(recent_sleep_durations) >= 3 and all(d < 6.5 for d in recent_sleep_durations):
+            insights.append("⚠️ **Fatigue Warning:** Your sleep has averaged under 6.5 hours for 3 days. Recommend reducing training intensity by 10-15% today to support central nervous system recovery.")
         
         # Map date (YYYY-MM-DD) to sleep data
         sleep_map = {}
@@ -428,14 +438,14 @@ class AnalyticsAgent:
                 vol = w.get("volume", 0)
                 if vol == 0: # Recalculate if missing
                     for ex in w.get("exercises", []):
-                        for set_ in ex.get("sets", []): vol += set_.get("weight", 0) * set_.get("reps", 0)
+                        for set_ in ex.get("sets", []): 
+                            vol += set_.get("weight", 0) * set_.get("reps", 0)
                 
                 if sleep.get("duration_hours", 0) >= 7.0:
                     high_sleep_vols.append(vol)
                 else:
                     low_sleep_vols.append(vol)
                     
-        insights = []
         if high_sleep_vols and low_sleep_vols:
             avg_high = sum(high_sleep_vols) / len(high_sleep_vols)
             avg_low = sum(low_sleep_vols) / len(low_sleep_vols)
@@ -445,5 +455,9 @@ class AnalyticsAgent:
                 insights.append(f"💤 **Sleep Power**: You lift **{diff}% more volume** when you sleep 7+ hours!")
             elif avg_low > avg_high:
                  insights.append("💤 **Odd Trend**: You seem to perform well even with less sleep. Ensure you recover enough!")
+                 
+            # Next Week Volume Prediction
+            projected_volume = int(avg_high * 1.02) if len(recent_sleep_durations) > 0 and recent_sleep_durations[-1] >= 7.5 else int(avg_low)
+            insights.append(f"🔮 **Weekly Target Prediction:** Based on your current recovery levels, your projected optimal workload capacity for next week is **{projected_volume} kg**.")
                  
         return insights

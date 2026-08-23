@@ -159,7 +159,7 @@ class ProgressEntryCreate(BaseModel):
 
 class ProgressEntryResponse(BaseModel):
     """Schema for progress entry response"""
-    id: int
+    id: str
     user_id: str
     date: str
     weight: float
@@ -187,7 +187,7 @@ class GoalCreate(BaseModel):
 
 class GoalResponse(BaseModel):
     """Schema for goal response"""
-    id: int
+    id: str
     user_id: str
     goal_type: str
     target_value: float

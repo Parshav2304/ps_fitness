@@ -31,7 +31,7 @@ from app.auth import (
     get_password_hash, verify_password, create_access_token,
     get_current_user, get_current_user_id
 )
-from app.api import auth, workouts, nutrition, progress, chat
+from app.api import auth, workouts, nutrition, progress, chat, foods
 
 from app.agents.fitness_agent import FitnessAgent
 from app.agents.nutrition_agent import NutritionAgent
@@ -113,9 +113,22 @@ async def general_exception_handler(request, exc):
         content={"error": "Internal server error", "detail": str(exc)}
     )
 
+@app.get("/api/health/status")
+@app.get("/health/status")
+async def get_health_status():
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "2.0.0"}
+
+app.include_router(foods.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
+app.include_router(workouts.router, prefix="/api")
+app.include_router(nutrition.router, prefix="/api")
+app.include_router(progress.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
+
+# Also include without /api prefix for backward compatibility where needed
+app.include_router(foods.router)
 app.include_router(auth.router)
 app.include_router(workouts.router)
-
 app.include_router(nutrition.router)
 app.include_router(progress.router)
 app.include_router(chat.router)
@@ -124,6 +137,7 @@ app.include_router(chat.router)
 # ==================== ANALYTICS ENDPOINTS ====================
 
 @app.get("/analytics/dashboard")
+@app.get("/api/analytics/dashboard")
 async def get_analytics_dashboard(current_user: dict = Depends(get_current_user)):
     """Get aggregated data for analytics dashboard"""
     try:
@@ -299,9 +313,47 @@ async def chat_with_ai(message: ChatMessage, current_user: dict = Depends(get_cu
             message.image_data
         )
         
-        # Save chat history
-        db = get_database()
+        # Intercept and autolog food if vision tag exists
+        import re
+        import json
+        log_match = re.search(r'\|\|LOG_FOOD\|\|(.*?)\|\|', response)
+        logged_message = ""
         
+        if log_match:
+            try:
+                food_json_str = log_match.group(1).strip()
+                food_data = json.loads(food_json_str)
+                
+                # Insert into food logs collection
+                log_entry = {
+                    "user_id": user_id,
+                    "name": food_data.get("name", "AI Vision Meal"),
+                    "calories": int(food_data.get("calories", 300)),
+                    "protein": float(food_data.get("protein", 10)),
+                    "carbs": float(food_data.get("carbs", 20)),
+                    "fats": float(food_data.get("fats", 10)),
+                    "meal": food_data.get("meal", "snacks"),
+                    "servings": 1.0,
+                    "date": datetime.utcnow().isoformat(),
+                    "created_at": datetime.utcnow()
+                }
+                
+                await db.food_logs.insert_one(log_entry)
+                
+                # Award Gamification metrics
+                xp_result = await GamificationService.award_xp(user_id, GamificationService.XP_MEAL_LOG)
+                await GamificationService.update_streak(user_id, db)
+                
+                # Append logging success notification to chat response
+                logged_message = f"\n\n📸 *[Autologged to Food Diary: {log_entry['name']} — {log_entry['calories']} kcal | {log_entry['protein']}g Protein | {log_entry['carbs']}g Carbs | {log_entry['fats']}g Fats (+{GamificationService.XP_MEAL_LOG} XP)]*"
+                
+            except Exception as ex:
+                logger.error(f"Failed to autolog food from vision: {str(ex)}")
+            
+            # Clean response text
+            response = re.sub(r'\|\|LOG_FOOD\|\|.*?\|\|', '', response).strip() + logged_message
+            
+        # Save chat history
         # Don't save the massive base64 string to DB to save space, just the text
         chat_msg_content = message.message
         if message.image_data:
@@ -584,301 +636,6 @@ async def get_comprehensive_insights(current_user_id: str = Depends(get_current_
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating insights: {str(e)}"
-        )
-
-# ============================================
-# NUTRITION PLANS (UPDATED)
-# ============================================
-@app.post("/nutrition/meal-plan-new")
-async def generate_meal_plan_endpoint_v2(
-    request: MealPlanRequest, 
-    current_user: dict = Depends(get_current_user)
-):
-    """Generate a daily meal plan (v2)"""
-    try:
-        logger.info(f"Generating meal plan for user: {current_user.get('username')}, Request: {request}")
-        
-        # Test DB access explicitly
-        try:
-            db_test = get_database()
-            logger.info("Database connection in meal plan endpoint: Success")
-        except Exception as db_err:
-             logger.error(f"Failed to get database in meal plan endpoint: {str(db_err)}")
-             # Don't raise yet, as we might not need it for local generation
-        
-        # Calculate default macros if not provided
-        macros_dict = {}
-        if request.macros:
-            macros_dict = request.macros.dict()
-        else:
-            # Simple 30/30/40 split or similar based on diet_type could go here
-            cals = request.target_calories
-            macros_dict = {
-                "protein": int(cals * 0.3 / 4),
-                "carbs": int(cals * 0.4 / 4),
-                "fat": int(cals * 0.3 / 9)
-            }
-        
-        logger.info(f"Calling MealService with macros: {macros_dict}")
-
-        try:
-            plan = await MealService.generate_meal_plan(
-                target_calories=request.target_calories,
-                macros=macros_dict,
-                meals_per_day=request.meals_per_day,
-                diet_type=request.diet_type
-            )
-            logger.info(f"Meal plan generated by: {plan.get('generated_by', 'UNKNOWN')} with diet: {request.diet_type}")
-            return {"meal_plan": plan}
-        except NameError as ne:
-             logger.error(f"NameError in MealService or call: {str(ne)}")
-             raise HTTPException(status_code=500, detail=f"Code Error: {str(ne)}")
-        except Exception as inner_e:
-             logger.error(f"Error inside MealService call: {str(inner_e)}")
-             raise inner_e
-        
-    except Exception as e:
-        logger.error(f"Error generating meal plan (Outer): {str(e)}")
-        # Return specific error to frontend
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error generating meal plan: {str(e)}"
-        )
-
-# ============================================
-# USDA FOODDATA CENTRAL API ENDPOINTS (FREE!)
-# ============================================
-
-
-
-@app.post("/nutrition/grocery-list")
-async def generate_grocery_list(meal_plan: Dict = Body(...), current_user: dict = Depends(get_current_user)):
-    """Generate a grocery list from a meal plan"""
-    try:
-        return GroceryService.generate_list(meal_plan)
-    except Exception as e:
-        logger.error(f"Error generating grocery list: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error generating grocery list: {str(e)}"
-        )
-
-# ==================== FOOD DATABASE & SEARCH ====================
-
-@app.get("/api/foods/search")
-async def search_foods(query: str, page: int = 1, page_size: int = 25, current_user: dict = Depends(get_current_user)):
-    """Search for foods in USDA database"""
-    try:
-        if not query or len(query) < 2:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Query must be at least 2 characters"
-            )
-        
-        results = USDAService.search_foods(query, page_size=page_size, page_number=page)
-        return results
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error searching foods: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error searching foods: {str(e)}"
-        )
-
-@app.get("/api/foods/{fdc_id}")
-async def get_food_by_id(fdc_id: int):
-    """Get detailed food information by USDA FDC ID"""
-    try:
-        food = USDAService.get_food_details(fdc_id)
-        if food:
-            return food
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Food not found"
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting food details: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error getting food details: {str(e)}"
-        )
-
-@app.get("/api/foods/barcode/{barcode}")
-async def lookup_barcode(barcode: str):
-    """Look up food by UPC/EAN barcode"""
-    try:
-        if not BarcodeService.validate_barcode(barcode):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid barcode format. Must be 8, 12, or 13 digits."
-            )
-        
-        food = BarcodeService.lookup_barcode(barcode)
-        if food:
-            return food
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Product not found in database"
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error looking up barcode: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error looking up barcode: {str(e)}"
-        )
-
-@app.get("/api/foods/category/{category}")
-async def search_by_category(category: str, page_size: int = 25):
-    """Search foods by category (fruits, vegetables, protein, etc.)"""
-    try:
-        results = USDAService.search_by_category(category, page_size=page_size)
-        return results
-    except Exception as e:
-        logger.error(f"Error searching by category: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error searching by category: {str(e)}"
-        )
-
-# ==================== RECENT FOODS & FAVORITES ====================
-
-@app.get("/api/foods/recent")
-async def get_recent_foods(current_user: dict = Depends(get_current_user), limit: int = 20):
-    """Get user's recently logged foods"""
-    try:
-        db = get_database()
-        user_id = str(current_user["id"])
-        
-        # Get recent food logs
-        cursor = db.food_logs.find(
-            {"user_id": user_id}
-        ).sort("logged_at", -1).limit(limit)
-        
-        logs = await cursor.to_list(length=limit)
-        
-        # Extract unique foods
-        recent_foods = []
-        seen_foods = set()
-        
-        for log in logs:
-            food_id = log.get("food_id", "")
-            if food_id and food_id not in seen_foods:
-                seen_foods.add(food_id)
-                recent_foods.append({
-                    "id": food_id,
-                    "name": log.get("food_name", ""),
-                    "nutrition": log.get("nutrition", {}),
-                    "last_logged": log.get("logged_at")
-                })
-        
-        return {"recent_foods": recent_foods}
-        
-    except Exception as e:
-        logger.error(f"Error getting recent foods: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error getting recent foods: {str(e)}"
-        )
-
-@app.get("/api/foods/favorites")
-async def get_favorite_foods(current_user: dict = Depends(get_current_user)):
-    """Get user's favorite foods"""
-    try:
-        db = get_database()
-        user_id = str(current_user["id"])
-        
-        cursor = db.favorite_foods.find({"user_id": user_id}).sort("added_date", -1)
-        favorites = await cursor.to_list(length=100)
-        
-        # Format response
-        favorite_foods = []
-        for fav in favorites:
-            favorite_foods.append({
-                "id": fav.get("food_id", ""),
-                "name": fav.get("food_name", ""),
-                "nutrition": fav.get("nutrition", {}),
-                "added_date": fav.get("added_date")
-            })
-        
-        return {"favorites": favorite_foods}
-        
-    except Exception as e:
-        logger.error(f"Error getting favorites: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error getting favorites: {str(e)}"
-        )
-
-@app.post("/api/foods/favorites")
-async def add_favorite_food(food_data: Dict = Body(...), current_user: dict = Depends(get_current_user)):
-    """Add a food to favorites"""
-    try:
-        db = get_database()
-        user_id = str(current_user["id"])
-        
-        # Check if already favorited
-        existing = await db.favorite_foods.find_one({
-            "user_id": user_id,
-            "food_id": food_data.get("id")
-        })
-        
-        if existing:
-            return {"message": "Food already in favorites", "already_exists": True}
-        
-        # Add to favorites
-        favorite = {
-            "user_id": user_id,
-            "food_id": food_data.get("id"),
-            "food_name": food_data.get("name"),
-            "nutrition": food_data.get("nutrition", {}),
-            "added_date": datetime.utcnow().isoformat()
-        }
-        
-        await db.favorite_foods.insert_one(favorite)
-        
-        return {"message": "Food added to favorites", "success": True}
-        
-    except Exception as e:
-        logger.error(f"Error adding favorite: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error adding favorite: {str(e)}"
-        )
-
-@app.delete("/api/foods/favorites/{food_id}")
-async def remove_favorite_food(food_id: str, current_user: dict = Depends(get_current_user)):
-    """Remove a food from favorites"""
-    try:
-        db = get_database()
-        user_id = str(current_user["id"])
-        
-        result = await db.favorite_foods.delete_one({
-            "user_id": user_id,
-            "food_id": food_id
-        })
-        
-        if result.deleted_count > 0:
-            return {"message": "Food removed from favorites", "success": True}
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Favorite not found"
-            )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error removing favorite: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error removing favorite: {str(e)}"
         )
 
 

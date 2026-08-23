@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import FoodLoggerModal from './FoodLoggerModal';
+import { getApiUrl } from '../utils/api';
 
 const NutritionLogger = ({ API_URL, token, setSuccess, setError }) => {
   const [foodEntries, setFoodEntries] = useState([]);
@@ -9,7 +10,7 @@ const NutritionLogger = ({ API_URL, token, setSuccess, setError }) => {
   const fetchTodayFoodLogs = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${API_URL}/food/today`, {
+      const res = await fetch(getApiUrl(API_URL, '/food/today'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -33,7 +34,7 @@ const NutritionLogger = ({ API_URL, token, setSuccess, setError }) => {
 
   const handleDeleteFood = async (id) => {
     try {
-      const res = await fetch(`${API_URL}/food/log/${id}`, {
+      const res = await fetch(getApiUrl(API_URL, `/food/log/${id}`), {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

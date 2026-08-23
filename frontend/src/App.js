@@ -11,6 +11,7 @@ import WorkoutPreferencesModal from './components/WorkoutPreferencesModal';
 import WorkoutLogger from './components/WorkoutLogger';
 import NutritionLogger from './components/NutritionLogger';
 import MealPlanner from './components/MealPlanner';
+import { FiZap, FiSettings, FiLogOut } from 'react-icons/fi';
 
 // API Configuration
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -23,9 +24,10 @@ function App() {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // Floating Toast Notifications List
+  const [toasts, setToasts] = useState([]);
   
   // Modals & UI State
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -44,9 +46,26 @@ function App() {
   });
 
   // ============================================
+  // TOAST HANDLER
+  // ============================================
+  const triggerToast = useCallback((message, type = 'success') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  // ============================================
   // INITIALIZATION & SIDE EFFECTS
   // ============================================
   
+  // Load Active Theme on Mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('user-theme') || 'violet';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  }, []);
+
   // Backend Health Check
   useEffect(() => {
     const checkBackend = async () => {
@@ -66,7 +85,7 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Profile Loading
+  // Profile & Hydration Loading
   useEffect(() => {
     if (token) {
       fetchUserProfile();
@@ -74,12 +93,13 @@ function App() {
     }
   }, [token]);
 
-  // Auth Handler
+  // Auth Handlers
   const handleLoginSuccess = (newToken, userData) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
     setUser(userData);
     setActiveTab('dashboard');
+    triggerToast('Logged in successfully! Welcome back.', 'success');
   };
 
   const handleLogout = () => {
@@ -87,6 +107,7 @@ function App() {
     setToken(null);
     setUser(null);
     setActiveTab('dashboard');
+    triggerToast('Logged out. See you soon!', 'info');
   };
 
   // API Methods
@@ -104,7 +125,7 @@ function App() {
         handleLogout();
       }
     } catch (err) {
-      setError('Failed to load profile');
+      triggerToast('Failed to load user profile.', 'error');
     } finally {
       setLoading(false);
     }
@@ -130,7 +151,8 @@ function App() {
 
   const logWater = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/nutrition/hydration`, {
+      // FIX: Align route to backend '/api/hydration/log'
+      const response = await fetch(`${API_URL}/api/hydration/log`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -140,11 +162,10 @@ function App() {
       });
       if (response.ok) {
         fetchHydration();
-        setSuccess('Logged 250ml water 💧');
-        setTimeout(() => setSuccess(null), 3000);
+        triggerToast('Logged 250ml water 💧', 'success');
       }
     } catch (err) {
-      setError('Failed to log water');
+      triggerToast('Failed to log water intake.', 'error');
     }
   };
 
@@ -156,7 +177,8 @@ function App() {
     try {
       setLoading(true);
       setShowWorkoutPreferences(false);
-      const response = await fetch(`${API_URL}/api/workouts/plan`, {
+      // FIX: Align route to backend '/api/workout/generate'
+      const response = await fetch(`${API_URL}/api/workout/generate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -171,10 +193,12 @@ function App() {
         const data = await response.json();
         setWorkoutPlan(data);
         setActiveTab('workout');
-        setSuccess('AI Workout Plan Generated!');
+        triggerToast('AI Workout Plan Generated!', 'success');
+      } else {
+        triggerToast('Failed to generate workout. Review metrics.', 'error');
       }
     } catch (err) {
-      setError('Failed to generate workout plan');
+      triggerToast('Error communicating with backend.', 'error');
     } finally {
       setLoading(false);
     }
@@ -187,7 +211,8 @@ function App() {
   const handleProfileUpdate = async (updates) => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/auth/update`, {
+      // FIX: Align route to backend '/api/auth/me'
+      const response = await fetch(`${API_URL}/api/auth/me`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -199,13 +224,13 @@ function App() {
       if (response.ok) {
         const updatedUser = await response.json();
         setUser(updatedUser);
-        setSuccess('Profile updated!');
+        triggerToast('Profile successfully updated!', 'success');
         setIsEditingProfile(false);
       } else {
-        setError('Failed to update profile');
+        triggerToast('Failed to update profile info.', 'error');
       }
     } catch (err) {
-      setError('Network error');
+      triggerToast('Network error during profile update.', 'error');
     } finally {
       setLoading(false);
     }
@@ -214,161 +239,124 @@ function App() {
   // ============================================
   // RENDER SECTIONS
   // ============================================
-  const renderDashboard = () => (
-    <div className="dashboard-grid animate-float">
-      {/* Welcome & Stats */}
-      <div className="glass-panel col-span-12" style={{ padding: '40px', background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9))' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ fontSize: '2.5rem', marginBottom: '10px' }}>
-              Welcome back, <span style={{ color: 'var(--primary)' }}>{user?.username}</span>! 🚀
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>Let's crush your goals today.</p>
+  const renderDashboard = () => {
+    if (loading && !user) {
+      return (
+        <div className="dashboard-grid animate-fade-in">
+          <div className="glass-panel col-span-12" style={{ padding: '40px' }}>
+            <div className="skeleton skeleton-title"></div>
+            <div className="skeleton skeleton-text" style={{ width: '40%' }}></div>
           </div>
-          <button onClick={() => setIsEditingProfile(true)} className="btn-secondary" style={{ padding: '10px 20px' }}>
-            ✏️ Edit Profile
-          </button>
-        </div>
-      </div>
-
-      <div className="glass-panel stats-card col-span-3">
-        <span className="stats-label">Weight</span>
-        <span className="stats-value" style={{ color: !user?.weight ? '#F43F5E' : 'inherit' }}>
-          {user?.weight || 'N/A'} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>kg</span>
-        </span>
-        {!user?.weight && <small style={{ color: '#F43F5E' }}>Profile Incorect</small>}
-      </div>
-
-      <div className="glass-panel stats-card col-span-3">
-        <span className="stats-label">Height</span>
-        <span className="stats-value" style={{ color: !user?.height ? '#F43F5E' : 'inherit' }}>
-          {user?.height || 'N/A'} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>cm</span>
-        </span>
-      </div>
-
-      <div className="glass-panel stats-card col-span-3">
-        <span className="stats-label">Goal</span>
-        <span className="stats-value" style={{ fontSize: '1.2rem' }}>{user?.fitness_goal || 'Not Set'}</span>
-      </div>
-
-      <div className="glass-panel stats-card col-span-3">
-        <span className="stats-label">Status</span>
-        <div style={{ color: '#10B981', fontWeight: 'bold', fontSize: '1.2rem' }}>Active 🔥</div>
-      </div>
-
-      {/* Calorie Tracking Card */}
-      <div className="glass-panel col-span-12" style={{ padding: '30px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(6, 182, 212, 0.1))' }}>
-        <h3 style={{ marginBottom: '20px', fontSize: '1.5rem' }}>📊 Today's Nutrition</h3>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '20px' }}>
-          {/* Calorie Goal */}
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '8px' }}>Goal</div>
-            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary)' }}>
-              {user?.weight && user?.height && user?.age ?
-                Math.round((10 * user.weight + 6.25 * user.height - 5 * user.age + 5) * 1.55 +
-                  (user.fitness_goal === 'weight_loss' ? -500 : user.fitness_goal === 'muscle_gain' ? 400 : 0))
-                : '2000'}
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="col-span-3 skeleton-card">
+              <div className="skeleton skeleton-text" style={{ width: '30%' }}></div>
+              <div className="skeleton skeleton-title" style={{ width: '70%', margin: 0 }}></div>
             </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>kcal</div>
+          ))}
+          <div className="glass-panel col-span-12" style={{ padding: '40px', height: '200px' }}>
+            <div className="skeleton skeleton-title" style={{ width: '30%' }}></div>
+            <div className="skeleton skeleton-text"></div>
+            <div className="skeleton skeleton-text" style={{ width: '80%' }}></div>
           </div>
+        </div>
+      );
+    }
 
-          {/* Consumed */}
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '8px' }}>Consumed</div>
-            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--secondary)' }}>0</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>kcal</div>
+    return (
+      <div className="dashboard-grid animate-fade-in">
+        {/* Welcome & Stats */}
+        <div className="glass-panel col-span-12" style={{ padding: '36px', background: 'var(--bg-card)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <h2 style={{ fontSize: '2.2rem', marginBottom: '8px', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>
+                Welcome back, <span style={{ background: 'var(--gradient-main)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{user?.username}</span>
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: '500' }}>Here is your daily fitness summary.</p>
+            </div>
+            <button onClick={() => setIsEditingProfile(true)} className="btn-secondary">
+              Edit Profile
+            </button>
           </div>
         </div>
 
-        {/* Today's Nutrition Summary — click through to full diary */}
-        <div
-          onClick={() => setActiveTab('nutrition')}
-          style={{ cursor: 'pointer' }}
-          title="Click to open Food Diary"
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Today's Nutrition</div>
-            <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: '600' }}>View Full Diary →</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+        <div className="glass-panel stats-card col-span-3">
+          <span className="stats-label">Weight</span>
+          <span className="stats-value">
+            {user?.weight || 'N/A'} <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', fontWeight: '500' }}>kg</span>
+          </span>
+        </div>
+
+        <div className="glass-panel stats-card col-span-3">
+          <span className="stats-label">Height</span>
+          <span className="stats-value">
+            {user?.height || 'N/A'} <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', fontWeight: '500' }}>cm</span>
+          </span>
+        </div>
+
+        <div className="glass-panel stats-card col-span-3">
+          <span className="stats-label">Goal</span>
+          <span className="stats-value" style={{ fontSize: '1.6rem', fontWeight: 700 }}>{user?.fitness_goal || 'Not Set'}</span>
+        </div>
+
+        <div className="glass-panel stats-card col-span-3">
+          <span className="stats-label">Level / XP</span>
+          <span className="stats-value" style={{ color: 'var(--primary)' }}>
+            Lvl {user?.level || 1}
+          </span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+            {user?.xp || 0} total XP
+          </span>
+        </div>
+
+        {/* Calorie Tracking Card */}
+        <div className="glass-panel col-span-12" style={{ padding: '30px' }}>
+          <h3 style={{ marginBottom: '20px', fontSize: '1.25rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>Today's Nutrition Summary</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '24px' }}>
             {[
-              { label: 'Protein', color: '#10b981' },
-              { label: 'Carbs',   color: '#3b82f6' },
-              { label: 'Fats',    color: '#f59e0b' },
-            ].map(({ label, color }) => (
-              <div key={label} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>{label}</div>
-                <div style={{ fontWeight: 'bold', color }}>—</div>
+              { label: 'Protein Target', color: 'var(--success)', val: user?.weight ? `${user.weight * 2}g` : '—' },
+              { label: 'Calorie Target', color: 'var(--primary)', val: user?.weight && user?.height && user?.age ? `${Math.round((10 * user.weight + 6.25 * user.height - 5 * user.age + 5) * 1.55)} kcal` : '—' },
+              { label: 'Water Consumed', color: 'var(--secondary)', val: `${hydration}ml` },
+            ].map(({ label, color, val }) => (
+              <div key={label} style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: '800', color, fontFamily: 'Outfit, sans-serif' }}>{val}</div>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
-            Open the <strong style={{ color: 'var(--primary)' }}>Nutrition</strong> tab to log your meals and track macros.
-          </p>
+
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button onClick={() => setActiveTab('nutrition')} className="btn-primary">
+              Open Nutrition Log
+            </button>
+            <button onClick={logWater} className="btn-secondary">
+              Log 250ml Water
+            </button>
+          </div>
         </div>
 
-        {/* Quick Add Buttons */}
-        <div style={{ marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setActiveTab('nutrition')}
-            style={{
-              padding: '10px 20px',
-              borderRadius: '12px',
-              background: 'var(--primary)',
-              border: 'none',
-              color: '#fff',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              transition: 'all 0.2s'
-            }}
-          >
-            + Log Food
-          </button>
-          <button
-            onClick={logWater}
-            style={{
-              padding: '10px 20px',
-              borderRadius: '12px',
-              background: 'rgba(255,255,255,0.1)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              color: 'var(--text-main)',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            <span>💧</span>
-            <span>{hydration} / 2500ml</span>
-            <span style={{ fontSize: '0.8em', opacity: 0.7 }}>(+250ml)</span>
+        {/* Actions */}
+        <div className="glass-panel col-span-8" style={{ padding: '30px' }}>
+          <h3 style={{ marginBottom: '16px', fontSize: '1.25rem' }}>Quick Planners</h3>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button className="btn-primary" onClick={generateWorkoutPlan}>
+              AI Workout Generator
+            </button>
+            <button className="btn-primary" onClick={generateMealPlan} style={{ background: 'var(--gradient-main)' }}>
+              AI Meal Planner
+            </button>
+          </div>
+        </div>
+
+        <div className="glass-panel col-span-4" style={{ padding: '30px', background: 'rgba(168, 85, 247, 0.03)', borderColor: 'rgba(168, 85, 247, 0.1)' }}>
+          <h3 style={{ fontFamily: 'Outfit', fontWeight: '700' }}>AI Coach</h3>
+          <p style={{ margin: '12px 0 20px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Ask questions, log food pictures, analyze plans.</p>
+          <button className="btn-primary" onClick={() => setActiveTab('chat')} style={{ width: '100%' }}>
+            Start Chat
           </button>
         </div>
       </div>
-
-      {/* Actions */}
-      <div className="glass-panel col-span-8" style={{ padding: '30px' }}>
-        <h3 style={{ marginBottom: '20px' }}>Quick Actions</h3>
-        <div style={{ display: 'flex', gap: '20px' }}>
-          <button className="btn-primary" onClick={generateWorkoutPlan} disabled={loading}>
-            {loading ? 'Generating...' : '⚡ Generate Workout'}
-          </button>
-          <button className="btn-primary" onClick={generateMealPlan} disabled={loading} style={{ background: 'var(--secondary)' }}>
-            🍎 Generate Meal Plan
-          </button>
-        </div>
-      </div>
-
-      <div className="glass-panel col-span-4" style={{ padding: '30px', background: 'rgba(139, 92, 246, 0.1)' }}>
-        <h3>AI Coach</h3>
-        <p style={{ margin: '15px 0', color: 'var(--text-muted)' }}>Need advice on form or diet?</p>
-        <button className="btn-primary" onClick={() => setActiveTab('chat')} style={{ width: '100%' }}>
-          Chat Now
-        </button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="App">
@@ -379,19 +367,26 @@ function App() {
           <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} onSettings={() => setShowSettings(true)} user={user} />
 
           <main className="main-content">
+            {token && user && (
+              <div className="mobile-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FiZap size={18} style={{ color: 'var(--primary)', filter: 'drop-shadow(0 0 6px var(--primary-glow))' }} />
+                  <span style={{ fontFamily: 'Outfit', fontWeight: '800', fontSize: '1.2rem', background: 'var(--gradient-main)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>PS Fitness</span>
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button onClick={() => setShowSettings(true)} style={{ background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    <FiSettings size={18} />
+                  </button>
+                  <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    <FiLogOut size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {!backendConnected && (
-              <div style={{ background: '#f43f5e', color: 'white', padding: '15px', borderRadius: '12px', marginBottom: '20px', textAlign: 'center' }}>
+              <div style={{ background: '#f43f5e', color: 'white', padding: '15px', borderRadius: '12px', marginBottom: '20px', textAlign: 'center', fontWeight: 'bold' }}>
                 ⚠️ Backend connection lost. Attempting to reconnect...
-              </div>
-            )}
-            {error && (
-              <div style={{ background: 'rgba(244, 63, 94, 0.1)', border: '1px solid #f43f5e', color: '#f43f5e', padding: '15px', borderRadius: '12px', marginBottom: '20px' }}>
-                ❌ {error}
-              </div>
-            )}
-            {success && (
-              <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '15px', borderRadius: '12px', marginBottom: '20px' }}>
-                ✅ {success}
               </div>
             )}
 
@@ -400,8 +395,8 @@ function App() {
               <WorkoutLogger 
                 API_URL={API_URL}
                 token={token}
-                setSuccess={setSuccess}
-                setError={setError}
+                setSuccess={(msg) => triggerToast(msg, 'success')}
+                setError={(err) => triggerToast(err, 'error')}
                 fetchUserProfile={fetchUserProfile}
                 generateWorkoutPlan={generateWorkoutPlan}
                 workoutPlan={workoutPlan}
@@ -412,39 +407,44 @@ function App() {
                 loading={loading}
               />
             )}
-            {activeTab === 'analytics' && (() => {
-              console.log("🎯 Rendering AnalyticsDashboard with:", { hydration, fetchHydration: typeof fetchHydration });
-              return (
-                <AnalyticsDashboard
-                  API_URL={API_URL}
-                  onProfileUpdate={fetchUserProfile}
-                  hydration={hydration}
-                  refreshHydration={fetchHydration}
-                />
-              );
-            })()}
+            {activeTab === 'analytics' && (
+              <AnalyticsDashboard
+                API_URL={API_URL}
+                onProfileUpdate={fetchUserProfile}
+                hydration={hydration}
+                refreshHydration={fetchHydration}
+              />
+            )}
             {activeTab === 'nutrition' && (
               <NutritionLogger 
                 API_URL={API_URL} 
                 token={token} 
-                setSuccess={setSuccess} 
-                setError={setError} 
+                setSuccess={(msg) => triggerToast(msg, 'success')}
+                setError={(err) => triggerToast(err, 'error')}
               />
             )}
             {activeTab === 'progress' && <AnalyticsDashboard API_URL={API_URL} onProfileUpdate={fetchUserProfile} />}
-            {activeTab === 'meal_plan' && <MealPlanner API_URL={API_URL} token={token} setSuccess={setSuccess} setError={setError} />}
+            {activeTab === 'meal_plan' && (
+              <MealPlanner 
+                API_URL={API_URL} 
+                token={token} 
+                setSuccess={(msg) => triggerToast(msg, 'success')} 
+                setError={(err) => triggerToast(err, 'error')} 
+              />
+            )}
             {activeTab === 'chat' && <PSAICoach token={token} API_URL={API_URL} user={user} />}
           </main>
         </div>
       )}
 
+      {/* Floating Rest Timer */}
       {showRestTimer && (
-        <div className="glass-panel animate-float" style={{ position: 'fixed', bottom: '20px', right: '20px', width: '300px', padding: '20px', zIndex: 1000, border: '1px solid rgba(255,255,255,0.2)' }}>
+        <div className="glass-panel" style={{ position: 'fixed', bottom: '20px', right: '20px', width: '300px', padding: '20px', zIndex: 1000, border: '1px solid rgba(255,255,255,0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>⏱️ Rest Timer</h4>
+            <h4 style={{ margin: 0 }}>⏱️ Rest Timer</h4>
             <button onClick={() => setShowRestTimer(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem' }}>×</button>
           </div>
-          <div style={{ fontSize: '2.5rem', textAlign: 'center', fontWeight: 'bold', marginBottom: '15px', color: restTimeLeft > 0 ? '#fff' : 'var(--text-muted)' }}>
+          <div style={{ fontSize: '2.5rem', textAlign: 'center', fontWeight: 'bold', marginBottom: '15px' }}>
             {Math.floor(restTimeLeft / 60)}:{(restTimeLeft % 60).toString().padStart(2, '0')}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -456,9 +456,22 @@ function App() {
         </div>
       )}
 
+      {/* Modals */}
       {isEditingProfile && <EditProfileModal user={user} onClose={() => setIsEditingProfile(false)} onUpdate={handleProfileUpdate} />}
       {showSettings && <SettingsModal user={user} onClose={() => setShowSettings(false)} onEditProfile={() => { setIsEditingProfile(true); setShowSettings(false); }} />}
       {showWorkoutPreferences && <WorkoutPreferencesModal preferences={workoutPreferences} setPreferences={setWorkoutPreferences} onClose={() => setShowWorkoutPreferences(false)} onGenerate={handleGenerateWithPreferences} />}
+
+      {/* Toast Notification Stack */}
+      <div className="toast-container">
+        {toasts.map((t) => (
+          <div key={t.id} className={`toast-message toast-${t.type}`}>
+            <span className="toast-icon">
+              {t.type === 'success' ? '✅' : t.type === 'error' ? '❌' : 'ℹ️'}
+            </span>
+            <span className="toast-text">{t.message}</span>
+          </div>
+        ))}
+      </div>
 
       <OnboardingTour user={user} />
     </div>

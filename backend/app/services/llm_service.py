@@ -47,7 +47,7 @@ class LLMService:
             
         try:
             # Construct system prompt
-            system_prompt = self._build_system_prompt(context)
+            system_prompt = self._build_system_prompt(context, has_image=(image_data is not None))
             
             prompt_parts = []
             prompt_parts.append(f"{system_prompt}\n\nUser History: {history}\n\nCurrent Request: {user_message}")
@@ -65,7 +65,6 @@ class LLMService:
                         
                     image_bytes = base64.b64decode(base64_str)
                     
-                    import io
                     # Use types.Part for the new Gemini SDK version 
                     image_part = types.Part.from_bytes(
                         data=image_bytes,
@@ -78,8 +77,8 @@ class LLMService:
                     logger.error(f"Failed to process image data: {e}")
                     return f"DEBUG FATAL ERROR. Failed processing image. Details: {str(e)}\n\nTraceback:\n{err_msg}"
             
-            # Content generation
-            response = self.client.models.generate_content(
+            # Content generation (async client.aio)
+            response = await self.client.aio.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt_parts
             )
@@ -89,7 +88,7 @@ class LLMService:
             logger.error(f"❌ LLM Generation Failed: {e}")
             return "I'm having a bit of a glitch. Could you ask that again?"
 
-    def _build_system_prompt(self, context: Dict[str, Any]) -> str:
+    def _build_system_prompt(self, context: Dict[str, Any], has_image: bool = False) -> str:
         """
         Constructs a detailed system prompt for the AI Coach.
         """
@@ -105,8 +104,19 @@ class LLMService:
         - You use emojis occasionally but not excessively.
         - You focus on DATA-DRIVEN advice.
         - You NEVER judge; you only optimize.
-        - YOU CAN SEE IMAGES. You have advanced computer vision. If the user provides an image of food, you MUST analyze it, identify the items, estimate the quantities, and provide nutritional macros. NEVER say you can't see an image if one is provided.
-
+        - YOU CAN SEE IMAGES. You have advanced computer vision. If the user provides an image of food, you MUST analyze it, identify the items, estimate the quantities, and provide nutritional macros.
+        """
+        
+        if has_image:
+            prompt += """
+            **CRITICAL FOOD IMAGE INSTRUCTION:**
+            The user has uploaded a food photo. Identify the food items, estimate portion sizes, and calculate macros.
+            You MUST append a JSON-logging block at the very end of your response exactly like this:
+            ||LOG_FOOD||{"name": "Chicken Chapati and Dal", "calories": 480, "protein": 24.0, "carbs": 58.0, "fats": 16.0, "meal": "lunch"}||
+            Ensure the JSON block is on a single line, matches the format exactly, and uses valid JSON. Make the 'meal' value match one of: breakfast, lunch, dinner, or snacks.
+            """
+            
+        prompt += f"""
         **User Profile:**
         - Goal: {user.get('fitness_goal', 'General Fitness')}
         - Weight: {user.get('weight', 'N/A')}kg
@@ -136,16 +146,15 @@ class LLMService:
             return None
             
         try:
-            # Enforce JSON in prompt
             full_prompt = f"""
             {prompt}
             
             IMPORTANT: Return ONLY valid JSON. No markdown formatting, no explanations.
             """
             
-            # content generation
-            response = self.client.models.generate_content(
-                model='gemini-flash-latest',
+            # content generation (async client.aio)
+            response = await self.client.aio.models.generate_content(
+                model='gemini-2.5-flash',
                 contents=full_prompt
             )
             

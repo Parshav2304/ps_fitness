@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FaPaperclip, FaMicrophone, FaArrowUp, FaBolt, FaPlus } from 'react-icons/fa';
+import { getApiUrl } from '../utils/api';
 
 const PSAICoach = ({ token, API_URL, user }) => {
     const fileInputRef = useRef(null);
@@ -18,7 +19,7 @@ const PSAICoach = ({ token, API_URL, user }) => {
             if (messages.length === 0) {
                 setMessages([{
                     role: 'assistant',
-                    content: `👋 Hey ${user?.username || 'Champion'}! I noticed you haven't logged a workout today.\n\nReady to crush a quick session? I can generate a 20-minute HIIT plan for you instantly!`,
+                    content: `Hello ${user?.username || 'there'}. I'm your strength & nutrition advisor.\n\nHow can I assist with your workout programming or macro targets today?`,
                     timestamp: new Date().toISOString()
                 }]);
             }
@@ -34,56 +35,23 @@ const PSAICoach = ({ token, API_URL, user }) => {
         reader.onloadend = () => {
             const base64String = reader.result;
 
-            // 1. Add User Image Message
             const newMsg = {
                 role: 'user',
-                content: base64String, // We show the image in UI
+                content: base64String,
                 type: 'image',
                 timestamp: new Date().toISOString()
             };
             setMessages(prev => [...prev, newMsg]);
-
-            // 2. Real API Call
             handleSend("Please analyze this food image for me.", base64String);
 
-            // Clear input so same file can be selected again
             if (fileInputRef.current) fileInputRef.current.value = "";
         };
         reader.readAsDataURL(file);
     };
 
-    // Initialize Speech Recognition
-    useEffect(() => {
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognitionRef.current = new SpeechRecognition();
-            recognitionRef.current.continuous = false;
-            recognitionRef.current.interimResults = false;
-            recognitionRef.current.lang = 'en-US'; // Or user's locale
-
-            recognitionRef.current.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                setInput(transcript);
-                setIsListening(false);
-                // Auto-send voice input
-                handleSendRef.current(transcript);
-            };
-
-            recognitionRef.current.onerror = (event) => {
-                console.error('Speech recognition error', event.error);
-                setIsListening(false);
-            };
-
-            recognitionRef.current.onend = () => {
-                setIsListening(false);
-            };
-        }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally runs once; uses ref for handleSend
-
     const handleSend = useCallback(async (text = input, imageData = null) => {
         if (!text.trim() && !imageData) return;
 
-        // Optimistic UI Update (Only if it's text, image is handled in handleImageUpload)
         if (!imageData) {
             const userMsg = { role: 'user', content: text, timestamp: new Date().toISOString() };
             setMessages(prev => [...prev, userMsg]);
@@ -98,7 +66,7 @@ const PSAICoach = ({ token, API_URL, user }) => {
                 payload.image_data = imageData;
             }
 
-            const res = await fetch(`${API_URL}/chat`, {
+            const res = await fetch(getApiUrl(API_URL, '/chat'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -113,7 +81,7 @@ const PSAICoach = ({ token, API_URL, user }) => {
             const aiMsg = { role: 'assistant', content: data.response, timestamp: new Date().toISOString() };
             setMessages(prev => [...prev, aiMsg]);
         } catch (err) {
-            setMessages(prev => [...prev, { role: 'assistant', content: "⚠️ Sorry, I'm having trouble connecting right now." }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: "Unable to reach server. Please check connection." }]);
         } finally {
             setIsTyping(false);
         }
@@ -126,19 +94,17 @@ const PSAICoach = ({ token, API_URL, user }) => {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                const res = await fetch(`${API_URL}/chat/history`, {
+                const res = await fetch(getApiUrl(API_URL, '/chat/history'), {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {
                     const history = await res.json();
-                    // Backend returns chronological list of {role, content, timestamp}
                     if (history.length > 0) {
                         setMessages(history);
                     } else {
-                        // Initial greeting if no history
                         setMessages([{
                             role: 'assistant',
-                            content: `Hi ${user?.username || 'Health Hero'}! I'm PS AI Coach. I can help with workouts, nutrition, and analyzing your progress. What's on your mind?`,
+                            content: `Hello ${user?.username || 'there'}. I am your strength and nutrition advisor. What is on your agenda today?`,
                             timestamp: new Date().toISOString()
                         }]);
                     }

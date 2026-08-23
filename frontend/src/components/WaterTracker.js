@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FaPlus, FaTint, FaMinus } from 'react-icons/fa';
+import { getApiUrl } from '../utils/api';
 
 const WaterTracker = ({ API_URL }) => {
     const [dailyTotal, setDailyTotal] = useState(0);
@@ -10,7 +11,7 @@ const WaterTracker = ({ API_URL }) => {
         if (!token) return;
 
         try {
-            const res = await fetch(`${API_URL}/hydration/today`, {
+            const res = await fetch(getApiUrl(API_URL, '/hydration/today'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
@@ -35,7 +36,7 @@ const WaterTracker = ({ API_URL }) => {
         if (!token) return;
 
         try {
-            const res = await fetch(`${API_URL}/hydration/undo`, {
+            const res = await fetch(getApiUrl(API_URL, '/hydration/undo'), {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -53,7 +54,7 @@ const WaterTracker = ({ API_URL }) => {
         if (!token) return;
 
         try {
-            const res = await fetch(`${API_URL}/hydration/log`, {
+            const res = await fetch(getApiUrl(API_URL, '/hydration/log'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

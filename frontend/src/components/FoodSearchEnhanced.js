@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback definition just in case, though it was unused in import? Wait, it IS used!
+import React, { useState, useEffect, useCallback } from 'react';
 import { FaStar, FaRegStar, FaClock, FaPlus } from 'react-icons/fa';
+import { getApiUrl } from '../utils/api';
 
 const FoodSearchEnhanced = ({ API_URL, onFoodSelected }) => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -14,7 +15,7 @@ const FoodSearchEnhanced = ({ API_URL, onFoodSelected }) => {
     const fetchRecentFoods = useCallback(async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${API_URL}/api/foods/recent?limit=20`, {
+            const response = await fetch(getApiUrl(API_URL, '/foods/recent?limit=20'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -29,7 +30,7 @@ const FoodSearchEnhanced = ({ API_URL, onFoodSelected }) => {
     const fetchFavorites = useCallback(async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${API_URL}/api/foods/favorites`, {
+            const response = await fetch(getApiUrl(API_URL, '/foods/favorites'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
