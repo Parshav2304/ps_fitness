@@ -16,6 +16,7 @@ import { FaTrophy, FaFire, FaDumbbell, FaWeight, FaRulerCombined } from 'react-i
 import WaterTracker from './WaterTracker';
 import SleepTracker from './SleepTracker';
 import ProgressGallery from './ProgressGallery';
+import { getApiUrl } from '../utils/api';
 
 // Register ChartJS components including Filler for area charts
 ChartJS.register(
@@ -45,7 +46,7 @@ const AnalyticsDashboard = ({ API_URL, onProfileUpdate, hydration, refreshHydrat
         const fetchAnalytics = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await fetch(`${API_URL}/analytics/dashboard`, {
+                const res = await fetch(getApiUrl(API_URL, '/analytics/dashboard'), {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 if (!res.ok) throw new Error('Failed to fetch analytics');
@@ -77,28 +78,27 @@ const AnalyticsDashboard = ({ API_URL, onProfileUpdate, hydration, refreshHydrat
         plugins: {
             legend: { display: false },
             tooltip: {
-                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                backgroundColor: 'rgba(13, 19, 34, 0.95)',
                 titleColor: '#f8fafc',
                 bodyColor: '#cbd5e1',
                 padding: 12,
-                cornerRadius: 12,
+                cornerRadius: 10,
                 displayColors: false,
                 borderWidth: 1,
-                borderColor: 'rgba(139, 92, 246, 0.2)',
+                borderColor: 'rgba(99, 102, 241, 0.3)',
                 intersect: false,
-                mode: 'index',
-                backdropFilter: 'blur(5px)'
+                mode: 'index'
             }
         },
         scales: {
             y: {
-                grid: { color: 'rgba(255, 255, 255, 0.03)' },
-                ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } },
+                grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                ticks: { color: '#64748b', font: { family: 'Plus Jakarta Sans, Inter, sans-serif', size: 11 } },
                 border: { display: false }
             },
             x: {
                 grid: { display: false },
-                ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } },
+                ticks: { color: '#64748b', font: { family: 'Plus Jakarta Sans, Inter, sans-serif', size: 11 } },
                 border: { display: false }
             }
         },
@@ -107,8 +107,7 @@ const AnalyticsDashboard = ({ API_URL, onProfileUpdate, hydration, refreshHydrat
             axis: 'x',
             intersect: false
         },
-        // Prevent giant bars when data is sparse
-        maxBarThickness: 40,
+        maxBarThickness: 36,
         borderRadius: 6
     };
 
@@ -121,12 +120,12 @@ const AnalyticsDashboard = ({ API_URL, onProfileUpdate, hydration, refreshHydrat
             backgroundColor: (context) => {
                 const ctx = context.chart.ctx;
                 const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-                gradient.addColorStop(0, '#8b5cf6');
-                gradient.addColorStop(1, '#a78bfa');
+                gradient.addColorStop(0, '#6366f1');
+                gradient.addColorStop(1, '#4338ca');
                 return gradient;
             },
             borderRadius: 6,
-            hoverBackgroundColor: '#7c3aed'
+            hoverBackgroundColor: '#818cf8'
         }],
     };
 
@@ -136,21 +135,21 @@ const AnalyticsDashboard = ({ API_URL, onProfileUpdate, hydration, refreshHydrat
         datasets: [{
             label: 'Weight (kg)',
             data: data.weight_trend.data,
-            borderColor: '#06b6d4',
+            borderColor: '#38bdf8',
             borderWidth: 2,
             backgroundColor: (context) => {
                 const ctx = context.chart.ctx;
                 const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-                gradient.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
-                gradient.addColorStop(1, 'rgba(6, 182, 212, 0)');
+                gradient.addColorStop(0, 'rgba(56, 189, 248, 0.25)');
+                gradient.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
                 return gradient;
             },
-            pointBackgroundColor: '#0f172a',
-            pointBorderColor: '#06b6d4',
+            pointBackgroundColor: '#0d1322',
+            pointBorderColor: '#38bdf8',
             pointBorderWidth: 2,
             pointHoverBorderWidth: 3,
             pointHoverRadius: 6,
-            tension: 0.4,
+            tension: 0.35,
             fill: true,
         }],
     };
@@ -175,7 +174,7 @@ const AnalyticsDashboard = ({ API_URL, onProfileUpdate, hydration, refreshHydrat
                 }[userData.activity_level] || 1.55) : 1.55
             };
 
-            const res = await fetch(`${API_URL}/api/progress`, {
+            const res = await fetch(getApiUrl(API_URL, '/progress'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -192,7 +191,7 @@ const AnalyticsDashboard = ({ API_URL, onProfileUpdate, hydration, refreshHydrat
             setNewWeight('');
 
             // Refresh data
-            const refreshRes = await fetch(`${API_URL}/analytics/dashboard`, {
+            const refreshRes = await fetch(getApiUrl(API_URL, '/analytics/dashboard'), {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const refreshData = await refreshRes.json();
@@ -372,7 +371,7 @@ const AnalyticsDashboard = ({ API_URL, onProfileUpdate, hydration, refreshHydrat
                             const date = new Date();
                             date.setDate(date.getDate() - (27 - i));
                             const dateStr = date.toISOString().split('T')[0];
-                            const active = data.consistency_heatmap.some(h => h.date === dateStr);
+                            const active = Array.isArray(data.consistency_heatmap) && data.consistency_heatmap.some(h => h.date === dateStr);
 
                             return (
                                 <div

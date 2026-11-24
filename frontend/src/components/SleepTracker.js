@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { FaMoon, FaStar } from 'react-icons/fa';
+import { getApiUrl } from '../utils/api';
 
 const SleepTracker = ({ API_URL }) => {
     const [duration, setDuration] = useState(7.5);
@@ -12,7 +13,7 @@ const SleepTracker = ({ API_URL }) => {
         const token = localStorage.getItem('token');
         if (!token) return;
         try {
-            const res = await fetch(`${API_URL}/sleep/recent`, {
+            const res = await fetch(getApiUrl(API_URL, '/sleep/recent'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
@@ -31,7 +32,7 @@ const SleepTracker = ({ API_URL }) => {
         if (!token) return;
 
         try {
-            const res = await fetch(`${API_URL}/sleep/log`, {
+            const res = await fetch(getApiUrl(API_URL, '/sleep/log'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

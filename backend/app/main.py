@@ -26,19 +26,21 @@ from app.services.usda_service import USDAService
 from app.services.barcode_service import BarcodeService
 from app.services.gamification_service import GamificationService
 from app.services.grocery_service import GroceryService
+from app.services.router_service import jev_router
+from app.services.rag_service import sports_rag
 from app.database import get_database, init_db, close_database
 from app.auth import (
     get_password_hash, verify_password, create_access_token,
     get_current_user, get_current_user_id
 )
-from app.api import auth, workouts, nutrition, progress, chat, foods
+from app.api import auth, workouts, nutrition, progress, chat, foods, openclaw
 
 from app.agents.fitness_agent import FitnessAgent
 from app.agents.nutrition_agent import NutritionAgent
 from app.agents.progress_agent import ProgressAgent
 from app.agents.analytics_agent import AnalyticsAgent
 from bson import ObjectId
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from contextlib import asynccontextmanager
 
@@ -124,6 +126,7 @@ app.include_router(workouts.router, prefix="/api")
 app.include_router(nutrition.router, prefix="/api")
 app.include_router(progress.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(openclaw.router, prefix="/api")
 
 # Also include without /api prefix for backward compatibility where needed
 app.include_router(foods.router)
@@ -132,6 +135,7 @@ app.include_router(workouts.router)
 app.include_router(nutrition.router)
 app.include_router(progress.router)
 app.include_router(chat.router)
+app.include_router(openclaw.router)
 
 
 # ==================== ANALYTICS ENDPOINTS ====================
@@ -254,6 +258,7 @@ async def get_analytics_dashboard(current_user: dict = Depends(get_current_user)
         )
 
 @app.post("/chat", response_model=ChatResponse)
+@app.post("/api/chat", response_model=ChatResponse)
 async def chat_with_ai(message: ChatMessage, current_user: dict = Depends(get_current_user)):
     """Chat with AI fitness assistant"""
     try:
@@ -305,14 +310,39 @@ async def chat_with_ai(message: ChatMessage, current_user: dict = Depends(get_cu
             conversation_history.append({'role': 'user', 'content': doc['message']})
             conversation_history.append({'role': 'assistant', 'content': doc['response']})
         
-        response = await chatbot_service.process_message(
+        # Jev Fast Decision Routing (<10ms classification)
+        jev_meta = jev_router.route(message.message)
+        matched_route = jev_meta.get("route", "GENERAL_COACH_CHAT")
+        router_latency = jev_meta.get("latency_ms", 0.3)
+        safety_alert = jev_meta.get("safety_alert", False)
+
+        # Vector RAG Evidence Retrieval
+        rag_context = None
+        evidence_cards = []
+        if jev_meta.get("needs_rag") or any(k in message.message.lower() for k in ["knee", "squat", "shoulder", "hypertrophy", "sets", "protein", "tdee", "pain", "injury"]):
+            rag_data = sports_rag.retrieve_evidence(message.message, user_id=user_id)
+            rag_context = rag_data.get("rag_context")
+            evidence_cards = rag_data.get("evidence_cards", [])
+
+        chat_res = await chatbot_service.process_message(
             message.message,
             user_id,
             user_context,
             conversation_history,
-            message.image_data
+            message.image_data,
+            preferred_engine=getattr(message, "engine", "auto"),
+            rag_context=rag_context
         )
         
+        if isinstance(chat_res, dict):
+            response = chat_res.get("response", "")
+            engine_used = chat_res.get("engine_used", "hybrid")
+            latency_ms = chat_res.get("latency_ms", 45)
+        else:
+            response = chat_res
+            engine_used = "rule-based"
+            latency_ms = 2
+            
         # Intercept and autolog food if vision tag exists
         import re
         import json
@@ -335,7 +365,7 @@ async def chat_with_ai(message: ChatMessage, current_user: dict = Depends(get_cu
                     "meal": food_data.get("meal", "snacks"),
                     "servings": 1.0,
                     "date": datetime.utcnow().isoformat(),
-                    "created_at": datetime.utcnow()
+                    "created_at": datetime.now(timezone.utc)
                 }
                 
                 await db.food_logs.insert_one(log_entry)
@@ -363,10 +393,19 @@ async def chat_with_ai(message: ChatMessage, current_user: dict = Depends(get_cu
             "user_id": user_id,
             "message": chat_msg_content,
             "response": response,
-            "created_at": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc)
         })
         
-        return ChatResponse(response=response)
+        if safety_alert:
+            response = response + "\n\n⚠️ *Clinical Safety Note: The symptoms you described may indicate joint or tissue strain. Please cease loaded movement immediately and consult a certified physical therapist or sports physician.*"
+
+        return ChatResponse(
+            response=response,
+            engine_used=engine_used,
+            latency_ms=latency_ms,
+            evidence=evidence_cards if evidence_cards else None,
+            jev_route={"label": matched_route, "latency": router_latency}
+        )
         
     except Exception as e:
         logger.error(f"Error in chat processing: {str(e)}")
@@ -376,6 +415,7 @@ async def chat_with_ai(message: ChatMessage, current_user: dict = Depends(get_cu
         )
 
 @app.delete("/chat/history")
+@app.delete("/api/chat/history")
 async def clear_chat_history(current_user: dict = Depends(get_current_user)):
     """Clear user's chat history"""
     try:
@@ -399,6 +439,7 @@ async def clear_chat_history(current_user: dict = Depends(get_current_user)):
 
 
 @app.get("/export")
+@app.get("/api/export")
 async def export_user_data(format: str = "json", current_user_id: str = Depends(get_current_user_id)):
     """Export user data in JSON or CSV format"""
     try:
@@ -476,6 +517,7 @@ async def export_user_data(format: str = "json", current_user_id: str = Depends(
 # ==================== ADVANCED AGENT ENDPOINTS ====================
 
 @app.get("/agents/nutrition/hydration")
+@app.get("/api/agents/nutrition/hydration")
 async def get_hydration_plan(
     weight_kg: float,
     activity_level: float,
@@ -495,6 +537,7 @@ async def get_hydration_plan(
         )
 
 @app.get("/agents/nutrition/supplements")
+@app.get("/api/agents/nutrition/supplements")
 async def get_supplement_recommendations(
     plan: str,
     goals: Optional[str] = None,
@@ -514,6 +557,7 @@ async def get_supplement_recommendations(
         )
 
 @app.post("/agents/nutrition/analyze-macros")
+@app.post("/api/agents/nutrition/analyze-macros")
 async def analyze_macro_balance(
     macros: dict,
     plan: str,
@@ -533,6 +577,7 @@ async def analyze_macro_balance(
         )
 
 @app.get("/agents/progress/velocity")
+@app.get("/api/agents/progress/velocity")
 async def get_progress_velocity(current_user_id: str = Depends(get_current_user_id)):
     """Calculate progress velocity and predictions"""
     try:
@@ -562,6 +607,7 @@ async def get_progress_velocity(current_user_id: str = Depends(get_current_user_
         )
 
 @app.get("/agents/progress/plateaus")
+@app.get("/api/agents/progress/plateaus")
 async def detect_plateaus(
     metric: str = "weight",
     threshold_days: int = 14,
@@ -584,6 +630,7 @@ async def detect_plateaus(
         )
 
 @app.get("/agents/progress/consistency")
+@app.get("/api/agents/progress/consistency")
 async def get_consistency_score(current_user_id: str = Depends(get_current_user_id)):
     """Get tracking consistency score"""
     try:
@@ -602,6 +649,7 @@ async def get_consistency_score(current_user_id: str = Depends(get_current_user_
         )
 
 @app.get("/agents/analytics/insights")
+@app.get("/api/agents/analytics/insights")
 async def get_comprehensive_insights(current_user_id: str = Depends(get_current_user_id)):
     """Get comprehensive analytics insights"""
     try:

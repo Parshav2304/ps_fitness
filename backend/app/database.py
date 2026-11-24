@@ -6,6 +6,7 @@ from pymongo import MongoClient
 import os
 from typing import Optional
 import certifi
+import asyncio
 
 # MongoDB connection settings
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
@@ -18,11 +19,18 @@ _database = None
 def get_database():
     """Get MongoDB database instance"""
     global _client, _database
-    if _client is None:
+    needs_new = _client is None
+    if not needs_new:
+        try:
+            if hasattr(_client, "io_loop") and _client.io_loop is not None and _client.io_loop.is_closed():
+                needs_new = True
+        except Exception:
+            pass
+    if needs_new:
         print("DEBUG: Initializing database connection...")
         
         # Only use TLS CA certifi wrapper for cloud Atlas connections (mongodb+srv)
-        client_kwargs = {}
+        client_kwargs = {"serverSelectionTimeoutMS": 5000}
         if "mongodb+srv://" in MONGODB_URL:
             client_kwargs["tlsCAFile"] = certifi.where()
             
@@ -33,8 +41,15 @@ def get_database():
 def get_client():
     """Get MongoDB client instance"""
     global _client
-    if _client is None:
-        client_kwargs = {}
+    needs_new = _client is None
+    if not needs_new:
+        try:
+            if hasattr(_client, "io_loop") and _client.io_loop is not None and _client.io_loop.is_closed():
+                needs_new = True
+        except Exception:
+            pass
+    if needs_new:
+        client_kwargs = {"serverSelectionTimeoutMS": 5000}
         if "mongodb+srv://" in MONGODB_URL:
             client_kwargs["tlsCAFile"] = certifi.where()
         _client = AsyncIOMotorClient(MONGODB_URL, **client_kwargs)
@@ -48,19 +63,28 @@ async def close_database():
         _client = None
 
 async def init_db():
-    """Initialize database indexes"""
-    db = get_database()
-    
-    # Create indexes for better query performance
-    await db.users.create_index("email", unique=True)
-    await db.users.create_index("username", unique=True)
-    await db.progress_entries.create_index([("user_id", 1), ("date", -1)])
-    await db.goals.create_index([("user_id", 1), ("created_at", -1)])
-    await db.workout_plans.create_index([("user_id", 1), ("created_at", -1)])
-    await db.meal_plans.create_index([("user_id", 1), ("created_at", -1)])
-    await db.chat_history.create_index([("user_id", 1), ("created_at", -1)])
-    
-    # Telemetry and logging indexes for fast aggregation
-    await db.food_logs.create_index([("user_id", 1), ("date", 1)])
-    await db.hydration_logs.create_index([("user_id", 1), ("date", 1)])
-    await db.sleep_logs.create_index([("user_id", 1), ("date", -1)])
+    """Initialize database indexes with resilience against connection delays"""
+    try:
+        db = get_database()
+        
+        # User auth uniqueness indexes
+        await db.users.create_index("email", unique=True)
+        await db.users.create_index("username", unique=True)
+        
+        # Performance indexes for telemetry & aggregation
+        await db.progress_entries.create_index([("user_id", 1), ("date", -1)])
+        await db.goals.create_index([("user_id", 1), ("created_at", -1)])
+        await db.workout_plans.create_index([("user_id", 1), ("created_at", -1)])
+        await db.meal_plans.create_index([("user_id", 1), ("created_at", -1)])
+        await db.chat_history.create_index([("user_id", 1), ("created_at", -1)])
+        
+        # Telemetry and logging indexes for fast aggregation
+        await db.workout_logs.create_index([("user_id", 1), ("date", 1)])
+        await db.food_logs.create_index([("user_id", 1), ("date", 1)])
+        await db.hydration_logs.create_index([("user_id", 1), ("date", 1)])
+        await db.sleep_logs.create_index([("user_id", 1), ("date", -1)])
+        await db.favorite_foods.create_index([("user_id", 1), ("food_id", 1)])
+        await db.progress_photos.create_index([("user_id", 1), ("date", -1)])
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Could not build indexes on startup (DB may be offline): {e}")

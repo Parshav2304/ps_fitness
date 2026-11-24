@@ -34,3 +34,8 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Vector DB & Embeddings Storage (regenerated on startup)
+backend/data/vector_db/
+**/vector_db/
+chroma.sqlite3

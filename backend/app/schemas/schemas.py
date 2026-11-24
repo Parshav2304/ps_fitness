@@ -3,7 +3,7 @@ Pydantic schemas for request/response validation
 Fully migrated to Pydantic V2 — uses ConfigDict, no deprecated class-based Config.
 """
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List, Union, Any
 from enum import Enum
 
 
@@ -219,12 +219,17 @@ class ChatMessage(BaseModel):
     message: str = Field(..., description="User's message")
     user_context: Optional[Dict] = Field(None, description="Optional user context")
     image_data: Optional[str] = Field(None, description="Optional Base64 encoded image data")
+    engine: Optional[str] = Field("auto", description="Preferred LLM engine: auto, ollama, or gemini")
 
 
 class ChatResponse(BaseModel):
     """Schema for chatbot response"""
     response: str
     suggestions: Optional[List[str]] = None
+    engine_used: Optional[str] = None
+    latency_ms: Optional[int] = None
+    evidence: Optional[List[Dict[str, Any]]] = None
+    jev_route: Optional[Dict[str, Any]] = None
 
 
 class ChatHistory(BaseModel):
@@ -280,7 +285,7 @@ class FoodLogResponse(BaseModel):
     carbs: float
     fats: float
     meal: str
-    servings: float
+    servings: float = 1.0
     xp_earned: Optional[int] = 0
     new_level: Optional[int] = None
     level_up_message: Optional[str] = None

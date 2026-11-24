@@ -62,114 +62,117 @@ const NutritionLogger = ({ API_URL, token, setSuccess, setError }) => {
   };
 
   return (
-    <div className="glass-panel animate-fade-in" style={{ padding: '30px', minHeight: '80vh' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h2 style={{ margin: 0 }}>🍎 Food Diary</h2>
+    <div className="glass-panel animate-fade-in" style={{ padding: '28px', minHeight: '80vh' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.6rem', color: '#fff' }}>Food Diary & Nutrition</h2>
+          <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>Daily macronutrient intake and meal logging</p>
+        </div>
         <button
           onClick={() => setShowAddFoodModal(true)}
           className="btn-primary"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontSize: '1rem' }}
         >
-          <span style={{ fontSize: '1.2rem' }}>+</span> Log Food
+          <span>+</span> Log Food
         </button>
       </div>
 
       {/* Premium Macro Dashboard with Animated SVG Rings */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(4, 1fr)', 
-        gap: '20px', 
-        marginBottom: '40px',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
+        gap: '16px', 
+        marginBottom: '32px',
         background: 'rgba(0,0,0,0.2)',
         padding: '20px',
-        borderRadius: '20px'
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid rgba(255,255,255,0.05)'
       }}>
         {/* Calories */}
         <div style={{ textAlign: 'center' }}>
-          <div style={{ position: 'relative', width: '100px', height: '100px', margin: '0 auto' }}>
-            <svg width="100" height="100" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="10" />
-              <circle className="macro-ring" cx="50" cy="50" r={radius} fill="none" stroke="#8b5cf6" strokeWidth="10" 
+          <div style={{ position: 'relative', width: '90px', height: '90px', margin: '0 auto' }}>
+            <svg width="90" height="90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
+              <circle className="macro-ring" cx="50" cy="50" r={radius} fill="none" stroke="var(--primary)" strokeWidth="8" 
                 strokeDasharray={circumference} strokeDashoffset={calculateDashOffset(totals.calories, goals.calories)} 
-                transform="rotate(-90 50 50)" style={{ transition: 'stroke-dashoffset 1s ease' }}/>
+                transform="rotate(-90 50 50)" style={{ transition: 'stroke-dashoffset 0.6s ease' }}/>
             </svg>
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 'bold' }}>
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: '700', fontSize: '1.1rem', fontVariantNumeric: 'tabular-nums' }}>
               {Math.round(totals.calories)}
             </div>
           </div>
-          <div style={{ marginTop: '10px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Calories</div>
+          <div style={{ marginTop: '8px', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase' }}>Calories</div>
         </div>
 
         {/* Protein */}
         <div style={{ textAlign: 'center' }}>
-          <div style={{ position: 'relative', width: '100px', height: '100px', margin: '0 auto' }}>
-            <svg width="100" height="100">
-              <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
+          <div style={{ position: 'relative', width: '90px', height: '90px', margin: '0 auto' }}>
+            <svg width="90" height="90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
               <circle cx="50" cy="50" r={radius} fill="none" stroke="#10b981" strokeWidth="8" 
                 strokeDasharray={circumference} strokeDashoffset={calculateDashOffset(totals.protein, goals.protein)} 
-                transform="rotate(-90 50 50)" style={{ transition: 'stroke-dashoffset 1s ease' }}/>
+                transform="rotate(-90 50 50)" style={{ transition: 'stroke-dashoffset 0.6s ease' }}/>
             </svg>
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 'bold' }}>
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: '700', fontSize: '1.1rem', fontVariantNumeric: 'tabular-nums' }}>
               {Math.round(totals.protein)}g
             </div>
           </div>
-          <div style={{ marginTop: '10px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Protein</div>
+          <div style={{ marginTop: '8px', color: '#10b981', fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase' }}>Protein</div>
         </div>
 
         {/* Carbs */}
         <div style={{ textAlign: 'center' }}>
-          <div style={{ position: 'relative', width: '100px', height: '100px', margin: '0 auto' }}>
-            <svg width="100" height="100">
-              <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
-              <circle cx="50" cy="50" r={radius} fill="none" stroke="#3b82f6" strokeWidth="8" 
+          <div style={{ position: 'relative', width: '90px', height: '90px', margin: '0 auto' }}>
+            <svg width="90" height="90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
+              <circle cx="50" cy="50" r={radius} fill="none" stroke="#38bdf8" strokeWidth="8" 
                 strokeDasharray={circumference} strokeDashoffset={calculateDashOffset(totals.carbs, goals.carbs)} 
-                transform="rotate(-90 50 50)" style={{ transition: 'stroke-dashoffset 1s ease' }}/>
+                transform="rotate(-90 50 50)" style={{ transition: 'stroke-dashoffset 0.6s ease' }}/>
             </svg>
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 'bold' }}>
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: '700', fontSize: '1.1rem', fontVariantNumeric: 'tabular-nums' }}>
               {Math.round(totals.carbs)}g
             </div>
           </div>
-          <div style={{ marginTop: '10px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Carbs</div>
+          <div style={{ marginTop: '8px', color: '#38bdf8', fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase' }}>Carbs</div>
         </div>
 
         {/* Fats */}
         <div style={{ textAlign: 'center' }}>
-          <div style={{ position: 'relative', width: '100px', height: '100px', margin: '0 auto' }}>
-            <svg width="100" height="100">
-              <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
+          <div style={{ position: 'relative', width: '90px', height: '90px', margin: '0 auto' }}>
+            <svg width="90" height="90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
               <circle cx="50" cy="50" r={radius} fill="none" stroke="#f59e0b" strokeWidth="8" 
                 strokeDasharray={circumference} strokeDashoffset={calculateDashOffset(totals.fats, goals.fats)} 
-                transform="rotate(-90 50 50)" style={{ transition: 'stroke-dashoffset 1s ease' }}/>
+                transform="rotate(-90 50 50)" style={{ transition: 'stroke-dashoffset 0.6s ease' }}/>
             </svg>
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 'bold' }}>
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: '700', fontSize: '1.1rem', fontVariantNumeric: 'tabular-nums' }}>
               {Math.round(totals.fats)}g
             </div>
           </div>
-          <div style={{ marginTop: '10px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Fats</div>
+          <div style={{ marginTop: '8px', color: '#f59e0b', fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase' }}>Fats</div>
         </div>
       </div>
 
       {/* Today's Meals */}
       <div>
-        <h3 style={{ marginBottom: '20px', fontSize: '1.2rem' }}>Today's Entries</h3>
+        <h3 style={{ marginBottom: '16px', fontSize: '1.1rem', color: '#fff' }}>Today's Entries</h3>
 
         {['breakfast', 'lunch', 'dinner', 'snacks'].map(mealType => {
           const mealFoods = foodEntries.filter(entry => entry.meal === mealType);
           const mealCalories = mealFoods.reduce((sum, entry) => sum + (entry.calories * (entry.servings || 1)), 0);
 
           return (
-            <div key={mealType} style={{ marginBottom: '25px' }}>
+            <div key={mealType} style={{ marginBottom: '18px' }}>
               <div style={{
-                padding: '15px 20px',
-                background: 'rgba(255,255,255,0.03)',
-                borderRadius: '12px',
-                border: '1px solid rgba(255,255,255,0.1)'
+                padding: '16px 20px',
+                background: 'rgba(255,255,255,0.02)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid rgba(255,255,255,0.06)'
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: mealFoods.length > 0 ? '15px' : '0' }}>
-                  <h4 style={{ fontSize: '1.1rem', color: 'var(--primary)', textTransform: 'capitalize' }}>
-                    {mealType === 'breakfast' ? '🌅 Breakfast' : mealType === 'lunch' ? '☀️ Lunch' : mealType === 'dinner' ? '🌙 Dinner' : '🍪 Snacks'}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: mealFoods.length > 0 ? '12px' : '0' }}>
+                  <h4 style={{ fontSize: '0.98rem', color: '#fff', textTransform: 'capitalize', fontWeight: '600' }}>
+                    {mealType === 'breakfast' ? 'Breakfast' : mealType === 'lunch' ? 'Lunch' : mealType === 'dinner' ? 'Dinner' : 'Snacks'}
                   </h4>
-                  <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{Math.round(mealCalories)} kcal</span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{Math.round(mealCalories)} kcal</span>
                 </div>
 
                 {mealFoods.length === 0 ? (

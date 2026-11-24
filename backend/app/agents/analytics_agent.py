@@ -2,8 +2,24 @@
 Analytics Agent - Advanced data analysis and insights
 """
 from typing import Dict, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import statistics
+
+def _to_naive_dt(dt_val) -> datetime:
+    if not dt_val:
+        return datetime.utcnow()
+    if isinstance(dt_val, str):
+        try:
+            dt = datetime.fromisoformat(dt_val.replace('Z', '+00:00'))
+        except Exception:
+            return datetime.utcnow()
+    elif isinstance(dt_val, datetime):
+        dt = dt_val
+    else:
+        return datetime.utcnow()
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 class AnalyticsAgent:
     """Advanced agent for data analysis and insights generation"""
@@ -217,11 +233,11 @@ class AnalyticsAgent:
         # Group by week
         volume_by_week = {}
         for log in workout_logs:
-            date_str = log.get("date")
-            if isinstance(date_str, str):
-                date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            date = _to_naive_dt(log.get("date"))
+            if False:
+                pass
             else:
-                date = date_str
+                pass
             
             # Get start of week (Monday)
             start_of_week = date - timedelta(days=date.weekday())
@@ -284,13 +300,14 @@ class AnalyticsAgent:
         """
         heatmap = {}
         for log in logs:
-            date_str = log.get("date")
-            if not date_str: continue
+            date = _to_naive_dt(log.get("date"))
+            if not date: continue
+            day = date.strftime("%Y-%m-%d")
             
-            if isinstance(date_str, str):
+            if False:
                 day = date_str.split("T")[0]
             else:
-                day = str(date_str.date())
+                pass
                 
             heatmap[day] = heatmap.get(day, 0) + 1
             
@@ -309,11 +326,11 @@ class AnalyticsAgent:
         last_week_logs = []
         
         for log in logs:
-            date_str = log.get("date")
-            if isinstance(date_str, str):
-                date = datetime.fromisoformat(date_str.replace('Z', ''))
+            date = _to_naive_dt(log.get("date"))
+            if False:
+                pass
             else:
-                date = date_str
+                pass
                 
             if date >= start_of_current_week:
                 current_week_logs.append(log)

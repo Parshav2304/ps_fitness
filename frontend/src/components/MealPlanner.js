@@ -74,33 +74,31 @@ const MealPlanner = ({ API_URL, token, setSuccess, setError }) => {
   const renderSmartPlanSection = () => {
     if (!mealPlan && !groceryList) return null;
     return (
-      <div className="glass-panel animate-fade-in" style={{ marginBottom: '30px', padding: '20px', border: '1px solid var(--primary)', background: 'rgba(139, 92, 246, 0.05)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            📋 Your Smart Plan
-            {mealPlan?.generated_by === 'AI_PRO' && (
-              <span style={{
-                fontSize: '0.7rem',
-                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-                padding: '4px 10px',
-                borderRadius: '20px',
-                color: '#fff',
-                boxShadow: '0 2px 10px rgba(139, 92, 246, 0.3)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                fontWeight: '600'
-              }}>
-                ✨ AI Generated
-              </span>
-            )}
+      <div className="glass-panel animate-fade-in" style={{ marginBottom: '28px', padding: '24px', border: '1px solid rgba(99, 102, 241, 0.25)', background: 'rgba(99, 102, 241, 0.03)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', color: '#fff' }}>
+            Your Smart Plan
+            <span style={{
+              fontSize: '0.7rem',
+              background: 'var(--primary-dim)',
+              border: '1px solid var(--primary-border)',
+              padding: '3px 8px',
+              borderRadius: '6px',
+              color: '#818cf8',
+              fontWeight: '700',
+              letterSpacing: '0.04em'
+            }}>
+              TARGET SPLIT
+            </span>
           </h3>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             {mealPlan && !groceryList && (
               <button className="btn-primary" onClick={generateGroceryList} disabled={loading}>
-                {loading ? 'Generating...' : '🛒 Generate Grocery List'}
+                {loading ? 'Generating...' : 'Generate Grocery List'}
               </button>
             )}
-            <button className="btn-glass" onClick={() => { setMealPlan(null); setGroceryList(null); }} style={{ border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.05)' }}>
-              🔄 Generate New Plan
+            <button className="btn-secondary" onClick={() => { setMealPlan(null); setGroceryList(null); }}>
+              Generate New Plan
             </button>
           </div>
         </div>
@@ -191,50 +189,81 @@ const MealPlanner = ({ API_URL, token, setSuccess, setError }) => {
         renderSmartPlanSection()
       ) : (
         <div>
-          <h2 style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '2rem' }}>🍎</span> Meal Plan Generator
-          </h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>
-            Create a personalized daily meal plan based on your diet preferences and calorie goals.
-          </p>
+          <div style={{ marginBottom: '24px' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '1.6rem', fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: 'rgba(99, 102, 241, 0.12)',
+                border: '1px solid rgba(99, 102, 241, 0.28)',
+                color: 'var(--primary-light)'
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+              </span>
+              Meal Plan Generator
+            </h2>
+            <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.92rem' }}>
+              Tailored nutritional architecture configured precisely to your caloric goals and macronutrient targets.
+            </p>
+          </div>
 
-          <div className="glass-panel" style={{ padding: '30px' }}>
-            <div style={{ display: 'grid', gap: '25px' }}>
+          <div className="glass-panel" style={{ padding: '28px', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ display: 'grid', gap: '24px' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '10px', color: 'var(--text-muted)', fontSize: '1.1rem' }}>Diet Type</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>
+                <label style={{ display: 'block', marginBottom: '12px', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Diet Type</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px' }}>
                   {[
-                    { id: 'balanced', label: 'Balanced', icon: '⚖️' },
-                    { id: 'non_vegetarian', label: 'Non-Veg', icon: '🍗' },
-                    { id: 'vegetarian', label: 'Vegetarian', icon: '🥦' },
-                    { id: 'vegan', label: 'Vegan', icon: '🌱' },
-                    { id: 'keto', label: 'Keto', icon: '🥓' },
-                    { id: 'low_carb', label: 'Low Carb', icon: '🥑' },
-                    { id: 'high_protein', label: 'High Protein', icon: '💪' }
+                    { id: 'balanced', label: 'Balanced' },
+                    { id: 'non_vegetarian', label: 'Omnivore' },
+                    { id: 'vegetarian', label: 'Vegetarian' },
+                    { id: 'vegan', label: 'Plant-Based' },
+                    { id: 'keto', label: 'Ketogenic' },
+                    { id: 'low_carb', label: 'Low Carb' },
+                    { id: 'high_protein', label: 'High Protein' }
                   ].map(diet => (
                     <div
                       key={diet.id}
                       onClick={() => setMealPlanPreferences({ ...mealPlanPreferences, diet_type: diet.id })}
                       style={{
-                        padding: '15px',
-                        borderRadius: '12px',
-                        background: mealPlanPreferences.diet_type === diet.id ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        padding: '14px 10px',
+                        borderRadius: '10px',
+                        background: mealPlanPreferences.diet_type === diet.id ? 'var(--primary)' : 'rgba(255,255,255,0.03)',
+                        border: mealPlanPreferences.diet_type === diet.id ? '1px solid var(--primary-light)' : '1px solid var(--border-subtle)',
+                        color: mealPlanPreferences.diet_type === diet.id ? '#ffffff' : 'var(--text-main)',
                         cursor: 'pointer',
                         textAlign: 'center',
-                        transition: 'all 0.2s',
-                        transform: mealPlanPreferences.diet_type === diet.id ? 'scale(1.05)' : 'scale(1)'
+                        transition: 'all 0.15s ease',
+                        boxShadow: mealPlanPreferences.diet_type === diet.id ? '0 4px 14px rgba(99, 102, 241, 0.35)' : 'none'
                       }}
                     >
-                      <div style={{ fontSize: '1.5rem', marginBottom: '5px' }}>{diet.icon}</div>
-                      <div style={{ fontWeight: 'bold' }}>{diet.label}</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{diet.label}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '10px', color: 'var(--text-muted)', fontSize: '1.1rem' }}>Target Calories</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Target Energy Intake</label>
+                  <span style={{
+                    background: 'var(--surface-raised)',
+                    padding: '4px 12px',
+                    borderRadius: '6px',
+                    fontWeight: 800,
+                    fontSize: '1rem',
+                    color: 'var(--primary-light)',
+                    border: '1px solid var(--border-subtle)',
+                    fontFamily: 'monospace'
+                  }}>
+                    {mealPlanPreferences.target_calories} kcal
+                  </span>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                   <input
                     type="range"
@@ -243,39 +272,30 @@ const MealPlanner = ({ API_URL, token, setSuccess, setError }) => {
                     step="50"
                     value={mealPlanPreferences.target_calories}
                     onChange={(e) => setMealPlanPreferences({ ...mealPlanPreferences, target_calories: parseInt(e.target.value) })}
-                    style={{ flex: 1, accentColor: 'var(--primary)' }}
+                    style={{ flex: 1, accentColor: 'var(--primary)', cursor: 'pointer' }}
                   />
-                  <div style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    padding: '10px 20px',
-                    borderRadius: '8px',
-                    fontWeight: 'bold',
-                    fontSize: '1.2rem',
-                    minWidth: '100px',
-                    textAlign: 'center'
-                  }}>
-                    {mealPlanPreferences.target_calories}
-                  </div>
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '10px', color: 'var(--text-muted)', fontSize: '1.1rem' }}>Meals Per Day</label>
-                <div style={{ display: 'flex', gap: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Meals Per Day</label>
+                <div style={{ display: 'flex', gap: '12px' }}>
                   {[3, 4, 5].map(nu => (
                     <button
                       key={nu}
+                      type="button"
                       onClick={() => setMealPlanPreferences({ ...mealPlanPreferences, meals_per_day: nu })}
                       style={{
                         flex: 1,
-                        padding: '15px',
-                        borderRadius: '12px',
-                        background: mealPlanPreferences.meals_per_day === nu ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        color: '#fff',
+                        padding: '12px',
+                        borderRadius: '10px',
+                        background: mealPlanPreferences.meals_per_day === nu ? 'var(--surface-raised)' : 'transparent',
+                        border: mealPlanPreferences.meals_per_day === nu ? '1px solid var(--primary)' : '1px solid var(--border-subtle)',
+                        color: mealPlanPreferences.meals_per_day === nu ? 'var(--primary-light)' : 'var(--text-muted)',
                         cursor: 'pointer',
-                        fontSize: '1.1rem',
-                        fontWeight: 'bold'
+                        fontSize: '0.92rem',
+                        fontWeight: 700,
+                        transition: 'all 0.15s ease'
                       }}
                     >
                       {nu} Meals
@@ -288,17 +308,20 @@ const MealPlanner = ({ API_URL, token, setSuccess, setError }) => {
                 onClick={handleConfirmGenerateMealPlan}
                 className="btn-primary"
                 style={{
-                  marginTop: '20px',
-                  padding: '20px',
-                  fontSize: '1.2rem',
+                  marginTop: '12px',
+                  padding: '16px',
+                  fontSize: '1rem',
+                  fontWeight: 700,
                   display: 'flex',
                   justifyContent: 'center',
                   alignItems: 'center',
-                  gap: '10px'
+                  gap: '10px',
+                  borderRadius: '10px',
+                  letterSpacing: '-0.01em'
                 }}
                 disabled={loading}
               >
-                {loading ? '⚙️ Generating Plan...' : '✨ Generate Personalized Plan'}
+                {loading ? 'Synthesizing Protocol...' : 'Generate Personalized Plan'}
               </button>
             </div>
           </div>

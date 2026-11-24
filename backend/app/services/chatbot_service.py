@@ -1,7 +1,7 @@
 """
 AI Chatbot Service - Intelligent Conversational Coach
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 import random
 
@@ -39,7 +39,9 @@ class ChatbotService:
         user_id: str,
         user_context: Optional[Dict] = None,
         conversation_history: List[Dict] = [],
-        image_data: Optional[str] = None
+        image_data: Optional[str] = None,
+        preferred_engine: str = "auto",
+        rag_context: Optional[str] = None
     ) -> str:
         """
         Generate intelligent, context-aware response
@@ -56,7 +58,14 @@ class ChatbotService:
         """
         # 1. Try LLM (Gemini) First
         if self.llm.is_available():
-            return await self.llm.generate_response(message, user_context or {}, conversation_history, image_data)
+            return await self.llm.generate_response(
+                message,
+                user_context or {},
+                conversation_history,
+                image_data,
+                preferred_engine=preferred_engine,
+                rag_context=rag_context
+            )
 
         # 2. Fallback to Rule-Based System
         return self._generate_response(message, user_id, user_context or {}, conversation_history)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from app.database import get_database
@@ -23,7 +23,7 @@ async def log_sleep(log: SleepLogCreate, current_user: dict = Depends(get_curren
         log_entry = log.model_dump()
         log_entry["user_id"] = user_id
         if not log_entry.get("date"):
-            log_entry["date"] = datetime.utcnow().isoformat()
+            log_entry["date"] = datetime.now(timezone.utc).isoformat()
             
         new_log = await db.sleep_logs.insert_one(log_entry)
         log_entry["id"] = str(new_log.inserted_id)
@@ -75,7 +75,7 @@ async def generate_workout_plan(request: WorkoutPlanRequest, current_user_id: st
             "plan_name": plan["plan_name"],
             "duration_weeks": 12,
             "workouts": plan["workouts"],
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
             "is_active": 1
         }
         await db.workout_plans.insert_one(workout_doc)
@@ -101,8 +101,8 @@ async def log_workout(workout: WorkoutLogCreate, current_user: dict = Depends(ge
         log_entry = workout.model_dump()
         log_entry["user_id"] = user_id
         if not log_entry.get("date"):
-            log_entry["date"] = datetime.utcnow().isoformat()
-        log_entry["created_at"] = datetime.utcnow()
+            log_entry["date"] = datetime.now(timezone.utc).isoformat()
+        log_entry["created_at"] = datetime.now(timezone.utc)
         
         # Insert into database
         result = await db.workout_logs.insert_one(log_entry)
@@ -149,3 +149,26 @@ async def log_workout(workout: WorkoutLogCreate, current_user: dict = Depends(ge
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error logging workout: {str(e)}"
         )
+
+@router.get("/workout/history", response_model=List[WorkoutLogResponse])
+@router.get("/workout/recent", response_model=List[WorkoutLogResponse])
+async def get_workout_history(limit: int = 20, current_user: dict = Depends(get_current_user)):
+    """Retrieve previous workout sessions for the current user"""
+    try:
+        db = get_database()
+        user_id = current_user["id"]
+        cursor = db.workout_logs.find({"user_id": user_id}).sort("date", -1).limit(limit)
+        logs = await cursor.to_list(length=limit)
+        
+        results = []
+        for log in logs:
+            log["id"] = str(log["_id"])
+            if "_id" in log:
+                del log["_id"]
+            if isinstance(log.get("created_at"), datetime):
+                log["created_at"] = log["created_at"].isoformat()
+            results.append(WorkoutLogResponse(**log))
+        return results
+    except Exception as e:
+        logger.error(f"Error fetching workout history: {str(e)}")
+        return []

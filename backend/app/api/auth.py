@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from app.schemas.auth_schemas import UserRegister, UserLogin, Token, UserResponse, UserUpdate
 from app.database import get_database
 from app.auth import get_password_hash, verify_password, create_access_token, get_current_user
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 import logging
 
@@ -34,8 +34,8 @@ async def register(user_data: UserRegister):
             "email": user_data.email,
             "hashed_password": get_password_hash(user_data.password),
             "full_name": user_data.full_name,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
             "age": user_data.age,
             "gender": user_data.gender,
             "height": user_data.height,
@@ -146,7 +146,7 @@ async def update_current_user_profile(user_update: UserUpdate, current_user: dic
         if not update_data:
             raise HTTPException(status_code=400, detail="No data provided for update")
             
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = datetime.now(timezone.utc)
         
         await db.users.update_one(
             {"_id": ObjectId(user_id)},

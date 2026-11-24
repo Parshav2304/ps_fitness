@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FaCamera, FaImage, FaPlus } from 'react-icons/fa';
+import { getApiUrl } from '../utils/api';
 
 const ProgressGallery = ({ API_URL }) => {
     const [photos, setPhotos] = useState([]);
@@ -9,7 +10,7 @@ const ProgressGallery = ({ API_URL }) => {
         const token = localStorage.getItem('token');
         if (!token) return;
         try {
-            const res = await fetch(`${API_URL}/progress/photos`, {
+            const res = await fetch(getApiUrl(API_URL, '/progress/photos'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
@@ -39,7 +40,7 @@ const ProgressGallery = ({ API_URL }) => {
     const uploadPhoto = async (imageData) => {
         const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/progress/photos`, {
+            const res = await fetch(getApiUrl(API_URL, '/progress/photos'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

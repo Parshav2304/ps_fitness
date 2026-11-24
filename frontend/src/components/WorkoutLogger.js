@@ -206,8 +206,10 @@ const WorkoutLogger = ({
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '30px', alignItems: 'start' }} className="workout-logger-grid">
         {/* LEFT: Exercise Search & List */}
         <div>
-          <div style={{ position: 'relative', marginBottom: '20px' }}>
-            <span style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', fontSize: '1.2rem' }}>🔍</span>
+          <div style={{ position: 'relative', marginBottom: '16px' }}>
+            <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </span>
             <input
               placeholder="Search exercises (e.g., Bench Press)..."
               value={exerciseSearch}
@@ -217,33 +219,33 @@ const WorkoutLogger = ({
               }}
               style={{
                 width: '100%',
-                padding: '15px 15px 15px 45px',
-                borderRadius: '15px',
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.1)',
+                padding: '12px 14px 12px 40px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.08)',
                 color: '#fff',
-                fontSize: '1rem'
+                fontSize: '0.95rem'
               }}
             />
           </div>
 
           {!selectedMuscleGroup && !exerciseSearch ? (
             <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-              <h3 style={{ textAlign: 'center', paddingTop: '20px', color: 'var(--primary)' }}>Select Muscle Group</h3>
+              <h3 style={{ textAlign: 'center', paddingTop: '18px', color: 'var(--text-main)', fontSize: '1.05rem' }}>Select Muscle Group</h3>
               <MuscleMap onSelectMuscle={(muscle) => setSelectedMuscleGroup(muscle)} />
             </div>
           ) : (
-            <div className="glass-panel" style={{ padding: '20px', maxHeight: '600px', overflowY: 'auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                <h3 style={{ margin: 0 }}>
+            <div className="glass-panel" style={{ padding: '16px', maxHeight: '580px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem', color: '#fff' }}>
                   {selectedMuscleGroup ? `${selectedMuscleGroup} Exercises` : 'Search Results'}
                 </h3>
                 {selectedMuscleGroup && (
                   <button
                     onClick={() => setSelectedMuscleGroup(null)}
-                    style={{ background: 'none', border: '1px solid rgba(255,255,255,0.2)', padding: '5px 10px', borderRadius: '8px', color: 'var(--text-muted)', cursor: 'pointer' }}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '6px', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem' }}
                   >
-                    ← Back
+                    Back
                   </button>
                 )}
               </div>
@@ -254,61 +256,61 @@ const WorkoutLogger = ({
                     key={ex.id}
                     onClick={() => setSelectedExercise(ex)}
                     style={{
-                      padding: '15px',
-                      background: selectedExercise?.id === ex.id ? 'rgba(139, 92, 246, 0.2)' : 'rgba(255,255,255,0.05)',
-                      border: selectedExercise?.id === ex.id ? '1px solid #8b5cf6' : '1px solid rgba(255,255,255,0.05)',
-                      borderRadius: '12px',
-                      marginBottom: '10px',
+                      padding: '12px 14px',
+                      background: selectedExercise?.id === ex.id ? 'var(--primary-dim)' : 'rgba(255,255,255,0.02)',
+                      border: selectedExercise?.id === ex.id ? '1px solid var(--primary-border)' : '1px solid rgba(255,255,255,0.05)',
+                      borderRadius: 'var(--radius-sm)',
+                      marginBottom: '8px',
                       cursor: 'pointer',
-                      transition: 'all 0.2s',
+                      transition: 'all 0.18s ease',
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center'
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{ex.name}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{ex.equipment} • {ex.difficulty}</div>
+                      <div style={{ fontWeight: '600', marginBottom: '3px', fontSize: '0.94rem' }}>{ex.name}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{ex.equipment} • {ex.difficulty}</div>
                     </div>
-                    {selectedExercise?.id === ex.id && <span style={{ color: '#8b5cf6' }}>●</span>}
+                    {selectedExercise?.id === ex.id && <span style={{ color: 'var(--primary)', fontSize: '0.75rem', fontWeight: '700' }}>ACTIVE</span>}
                   </div>
                 ))
               ) : (
-                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No exercises found.</div>
+                <div style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>No exercises found.</div>
               )}
             </div>
           )}
         </div>
 
         {/* RIGHT: Logger Area */}
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '25px', borderRadius: '20px' }}>
+        <div className="glass-panel" style={{ padding: '24px' }}>
           {selectedExercise ? (
             <div className="animate-fade-in">
-              <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '15px' }}>
-                📝 Log: <span style={{ color: 'var(--primary)' }}>{selectedExercise.name}</span>
+              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '12px', fontSize: '1.15rem' }}>
+                Log Set: <span style={{ color: 'var(--primary)' }}>{selectedExercise.name}</span>
               </h3>
 
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', alignItems: 'flex-end' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px' }}>Weight (kg)</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '5px', textTransform: 'uppercase', fontWeight: '600' }}>Weight (kg)</label>
                   <input 
                     type="number" 
                     inputMode="decimal"
                     value={currentInputs.weight}
                     onChange={(e) => setCurrentInputs(p => ({ ...p, weight: e.target.value }))}
-                    placeholder="Prev: 20" 
-                    style={{ width: '100%', padding: '15px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '1.2rem', textAlign: 'center' }} 
+                    placeholder="20" 
+                    style={{ width: '100%', padding: '12px', borderRadius: 'var(--radius-sm)', textAlign: 'center', fontSize: '1.1rem', fontWeight: '700' }} 
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px' }}>Reps</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '5px', textTransform: 'uppercase', fontWeight: '600' }}>Reps</label>
                   <input 
                     type="number" 
                     inputMode="numeric"
                     value={currentInputs.reps}
                     onChange={(e) => setCurrentInputs(p => ({ ...p, reps: e.target.value }))}
-                    placeholder="Prev: 10" 
-                    style={{ width: '100%', padding: '15px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '1.2rem', textAlign: 'center' }} 
+                    placeholder="10" 
+                    style={{ width: '100%', padding: '12px', borderRadius: 'var(--radius-sm)', textAlign: 'center', fontSize: '1.1rem', fontWeight: '700' }} 
                   />
                 </div>
               </div>
@@ -316,56 +318,56 @@ const WorkoutLogger = ({
               <button
                 className="btn-primary"
                 onClick={handleAddAndCompleteSet}
-                style={{ width: '100%', padding: '16px', fontSize: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
+                style={{ width: '100%', padding: '13px', fontSize: '1rem' }}
               >
-                ✓ Complete Set & Rest
+                Complete Set & Rest
               </button>
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: '50px', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '15px' }}>👈</div>
-              Select an exercise to start logging sets
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: '0.92rem' }}>
+              Select an exercise from the left to begin logging sets.
             </div>
           )}
 
-          <div style={{ margin: '30px 0' }} />
+          <div style={{ margin: '24px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }} />
 
           {/* Current Workout Summary */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
-            <h3 style={{ margin: 0 }}>⏱️ Today's Session</h3>
-            <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '1.2rem' }}>
-              {currentWorkout.reduce((acc, ex) => acc + ex.sets.reduce((sAcc, s) => sAcc + (s.weight * s.reps), 0), 0)} kg
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>Today's Session</h3>
+            <span style={{ color: '#10b981', fontWeight: '700', fontSize: '1.05rem', fontVariantNumeric: 'tabular-nums' }}>
+              {currentWorkout.reduce((acc, ex) => acc + ex.sets.reduce((sAcc, s) => sAcc + (s.weight * s.reps), 0), 0)} kg total
             </span>
           </div>
 
-          <div style={{ marginTop: '15px', display: 'grid', gap: '15px' }}>
+          <div style={{ display: 'grid', gap: '10px' }}>
             {currentWorkout.map(ex => (
-              <div key={ex.id} className="glass-panel" style={{ padding: '15px', background: 'rgba(255,255,255,0.02)' }}>
-                <strong style={{ color: 'var(--primary)', display: 'block', marginBottom: '10px', fontSize: '1.1rem' }}>{ex.name}</strong>
+              <div key={ex.id} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <strong style={{ color: '#fff', display: 'block', marginBottom: '8px', fontSize: '0.95rem' }}>{ex.name}</strong>
                 {ex.sets.map((set, idx) => (
                   <div key={set.id} style={{ 
                     display: 'flex', 
                     justifyContent: 'space-between', 
-                    padding: '12px 10px', 
-                    background: set.completed ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                    alignItems: 'center',
+                    padding: '8px 10px', 
+                    background: set.completed ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
                     borderLeft: set.completed ? '3px solid #10b981' : '3px solid transparent',
                     borderRadius: '4px',
-                    marginBottom: '5px'
+                    marginBottom: '4px'
                   }}>
-                    <span style={{ fontWeight: 'bold', color: 'var(--text-muted)' }}>Set {idx + 1}</span>
-                    <span style={{ fontSize: '1.1rem' }}>{set.weight}kg × {set.reps}</span>
+                    <span style={{ fontWeight: '600', color: 'var(--text-muted)', fontSize: '0.82rem' }}>Set {idx + 1}</span>
+                    <span style={{ fontSize: '0.95rem', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>{set.weight}kg × {set.reps}</span>
                     <button
-                      style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '1.2rem', cursor: 'pointer', padding: '0 10px' }}
+                      style={{ background: 'none', border: 'none', color: '#f43f5e', fontSize: '1.1rem', cursor: 'pointer', padding: '0 6px', opacity: 0.8 }}
                       onClick={() => handleDeleteSet(ex.id, set.id)}
                     >
-                      🗑️
+                      ×
                     </button>
                   </div>
                 ))}
               </div>
             ))}
             {currentWorkout.length === 0 && (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', padding: '20px 0' }}>
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', padding: '16px 0', fontSize: '0.88rem' }}>
                 Session is empty.
               </div>
             )}

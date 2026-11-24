@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Body, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from typing import List, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 import logging
 
@@ -32,7 +32,7 @@ async def log_hydration(log: HydrationLogCreate, current_user: dict = Depends(ge
         log_entry = log.model_dump()
         log_entry["user_id"] = user_id
         if not log_entry.get("date"):
-            log_entry["date"] = datetime.utcnow().isoformat()
+            log_entry["date"] = datetime.now(timezone.utc).isoformat()
         
         new_log = await db.hydration_logs.insert_one(log_entry)
         log_entry["id"] = str(new_log.inserted_id)
@@ -55,7 +55,7 @@ async def undo_hydration_log(current_user: dict = Depends(get_current_user)):
         db = get_database()
         user_id = str(current_user["id"])
         
-        today_str = datetime.utcnow().date().isoformat()
+        today_str = datetime.now(timezone.utc).date().isoformat()
         latest_log = await db.hydration_logs.find_one(
             {
                 "user_id": user_id,
@@ -86,7 +86,7 @@ async def get_hydration_today(current_user: dict = Depends(get_current_user)):
         db = get_database()
         user_id = str(current_user["id"])
         
-        today_str = datetime.utcnow().date().isoformat()
+        today_str = datetime.now(timezone.utc).date().isoformat()
         cursor = db.hydration_logs.find({
             "user_id": user_id,
             "date": {"$regex": f"^{today_str}"}
@@ -121,8 +121,8 @@ async def log_food(food: FoodLogCreate, current_user: dict = Depends(get_current
         log_entry = food.model_dump()
         log_entry["user_id"] = user_id
         if not log_entry.get("date"):
-            log_entry["date"] = datetime.utcnow().isoformat()
-        log_entry["created_at"] = datetime.utcnow()
+            log_entry["date"] = datetime.now(timezone.utc).isoformat()
+        log_entry["created_at"] = datetime.now(timezone.utc)
         
         result = await db.food_logs.insert_one(log_entry)
         
@@ -158,7 +158,7 @@ async def get_food_today(current_user: dict = Depends(get_current_user)):
         db = get_database()
         user_id = current_user["id"]
         
-        today_str = datetime.utcnow().date().isoformat()
+        today_str = datetime.now(timezone.utc).date().isoformat()
         cursor = db.food_logs.find({
             "user_id": user_id,
             "date": {"$regex": f"^{today_str}"}
@@ -271,7 +271,7 @@ async def generate_meal_plan(request: Request, meal_request: MealPlanRequest, cu
         db = get_database()
         meal_doc = {
             "user_id": str(current_user["id"]),
-            "date": datetime.utcnow(),
+            "date": datetime.now(timezone.utc),
             "target_calories": meal_request.target_calories,
             "diet_type": meal_request.diet_type,
             "plan": plan

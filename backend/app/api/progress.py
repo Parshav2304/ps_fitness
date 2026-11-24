@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 import logging
 
@@ -118,7 +118,7 @@ async def create_progress_entry(entry: ProgressEntryCreate, current_user_id: str
         
         progress_doc = {
             "user_id": current_user_id,
-            "date": datetime.utcnow(),
+            "date": datetime.now(timezone.utc),
             "weight": entry.weight,
             "height": entry.height,
             "body_fat": entry.body_fat,
@@ -156,7 +156,7 @@ async def upload_progress_photo(photo: ProgressPhotoCreate, current_user_id: str
         db = get_database()
         photo_doc = photo.model_dump()
         photo_doc["user_id"] = current_user_id
-        photo_doc["created_at"] = datetime.utcnow()
+        photo_doc["created_at"] = datetime.now(timezone.utc)
         result = await db.progress_photos.insert_one(photo_doc)
         return {"id": str(result.inserted_id), "message": "Photo uploaded successfully"}
     except Exception as e:
@@ -177,7 +177,7 @@ async def create_goal(goal: GoalCreate, current_user_id: str = Depends(get_curre
     try:
         db = get_database()
         deadline = datetime.fromisoformat(goal.deadline.replace('Z', '+00:00')) if goal.deadline else None
-        goal_doc = {"user_id": current_user_id, "goal_type": goal.goal_type, "target_value": goal.target_value, "current_value": goal.current_value, "unit": goal.unit, "deadline": deadline, "created_at": datetime.utcnow(), "updated_at": datetime.utcnow(), "completed": 0}
+        goal_doc = {"user_id": current_user_id, "goal_type": goal.goal_type, "target_value": goal.target_value, "current_value": goal.current_value, "unit": goal.unit, "deadline": deadline, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "completed": 0}
         result = await db.goals.insert_one(goal_doc)
         return {"id": str(result.inserted_id), "message": "Goal created successfully"}
     except Exception as e:

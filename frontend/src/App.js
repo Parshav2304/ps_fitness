@@ -11,7 +11,8 @@ import WorkoutPreferencesModal from './components/WorkoutPreferencesModal';
 import WorkoutLogger from './components/WorkoutLogger';
 import NutritionLogger from './components/NutritionLogger';
 import MealPlanner from './components/MealPlanner';
-import { FiZap, FiSettings, FiLogOut } from 'react-icons/fi';
+import { getApiUrl } from './utils/api';
+import { FiZap, FiSettings, FiLogOut, FiPlus, FiActivity, FiDroplet, FiPieChart, FiTrendingUp } from 'react-icons/fi';
 
 // API Configuration
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -39,6 +40,7 @@ function App() {
   // Feature Data
   const [workoutPlan, setWorkoutPlan] = useState(null);
   const [hydration, setHydration] = useState(0);
+  const [todayNutrition, setTodayNutrition] = useState({ calories: 0, protein: 0, carbs: 0, fats: 0 });
   const [workoutPreferences, setWorkoutPreferences] = useState({
     days_per_week: 4,
     location: 'gym',
@@ -70,7 +72,7 @@ function App() {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/health/status`);
+        const response = await fetch(getApiUrl(API_URL, '/health/status'));
         if (response.ok) {
           setBackendConnected(true);
         } else {
@@ -85,14 +87,6 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Profile & Hydration Loading
-  useEffect(() => {
-    if (token) {
-      fetchUserProfile();
-      fetchHydration();
-    }
-  }, [token]);
-
   // Auth Handlers
   const handleLoginSuccess = (newToken, userData) => {
     localStorage.setItem('token', newToken);
@@ -102,20 +96,20 @@ function App() {
     triggerToast('Logged in successfully! Welcome back.', 'success');
   };
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
     setActiveTab('dashboard');
     triggerToast('Logged out. See you soon!', 'info');
-  };
+  }, [triggerToast]);
 
   // API Methods
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     if (!token) return;
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/auth/me`, {
+      const response = await fetch(getApiUrl(API_URL, '/auth/me'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -129,12 +123,12 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, handleLogout, triggerToast]);
 
   const fetchHydration = useCallback(async () => {
     if (!token) return;
     try {
-      const response = await fetch(`${API_URL}/api/nutrition/hydration`, {
+      const response = await fetch(getApiUrl(API_URL, '/nutrition/hydration'), {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json'
@@ -142,27 +136,59 @@ function App() {
       });
       if (response.ok) {
         const data = await response.json();
-        setHydration(data.amount_ml);
+        setHydration(data.total_ml ?? data.amount_ml ?? 0);
       }
     } catch (err) {
       console.error("Hydration fetch failed:", err);
     }
   }, [token]);
 
-  const logWater = async () => {
+  const fetchTodayNutrition = useCallback(async () => {
+    if (!token) return;
     try {
-      // FIX: Align route to backend '/api/hydration/log'
-      const response = await fetch(`${API_URL}/api/hydration/log`, {
+      const res = await fetch(getApiUrl(API_URL, '/food/today'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const tCalories = data.reduce((sum, e) => sum + ((e.calories || 0) * (e.servings || 1)), 0);
+        const tProtein = data.reduce((sum, e) => sum + ((e.protein || 0) * (e.servings || 1)), 0);
+        const tCarbs = data.reduce((sum, e) => sum + ((e.carbs || 0) * (e.servings || 1)), 0);
+        const tFats = data.reduce((sum, e) => sum + ((e.fats || 0) * (e.servings || 1)), 0);
+        setTodayNutrition({
+          calories: Math.round(tCalories),
+          protein: Math.round(tProtein),
+          carbs: Math.round(tCarbs),
+          fats: Math.round(tFats)
+        });
+      }
+    } catch (err) {
+      console.error("Today nutrition fetch error:", err);
+    }
+  }, [token]);
+
+  // Profile, Hydration & Nutrition Loading
+  useEffect(() => {
+    if (token) {
+      fetchUserProfile();
+      fetchHydration();
+      fetchTodayNutrition();
+    }
+  }, [token, fetchUserProfile, fetchHydration, fetchTodayNutrition]);
+
+  const logWater = async (amount = 250) => {
+    try {
+      const response = await fetch(getApiUrl(API_URL, '/hydration/log'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ amount_ml: 250 })
+        body: JSON.stringify({ amount_ml: amount })
       });
       if (response.ok) {
         fetchHydration();
-        triggerToast('Logged 250ml water 💧', 'success');
+        triggerToast(`Logged ${amount}ml water 💧`, 'success');
       }
     } catch (err) {
       triggerToast('Failed to log water intake.', 'error');
@@ -177,8 +203,7 @@ function App() {
     try {
       setLoading(true);
       setShowWorkoutPreferences(false);
-      // FIX: Align route to backend '/api/workout/generate'
-      const response = await fetch(`${API_URL}/api/workout/generate`, {
+      const response = await fetch(getApiUrl(API_URL, '/workout/generate'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -193,7 +218,7 @@ function App() {
         const data = await response.json();
         setWorkoutPlan(data);
         setActiveTab('workout');
-        triggerToast('AI Workout Plan Generated!', 'success');
+        triggerToast('Personalized Training Split Generated!', 'success');
       } else {
         triggerToast('Failed to generate workout. Review metrics.', 'error');
       }
@@ -204,15 +229,10 @@ function App() {
     }
   };
 
-  const generateMealPlan = async () => {
-    setActiveTab('meal_plan');
-  };
-
   const handleProfileUpdate = async (updates) => {
     try {
       setLoading(true);
-      // FIX: Align route to backend '/api/auth/me'
-      const response = await fetch(`${API_URL}/api/auth/me`, {
+      const response = await fetch(getApiUrl(API_URL, '/auth/me'), {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -262,97 +282,244 @@ function App() {
       );
     }
 
+    // Dynamic Expenditure & Macro calculations (MacroFactor / Precision Nutrition standard)
+    const weight = user?.weight || 70;
+    const height = user?.height || 175;
+    const age = user?.age || 25;
+    const gender = user?.gender || 'male';
+    const bmr = 10 * weight + 6.25 * height - 5 * age + (gender === 'female' ? -161 : 5);
+    const estimatedTdee = Math.round(bmr * 1.45);
+    const goal = (user?.fitness_goal || '').toLowerCase();
+    const goalOffset = goal.includes('loss') || goal.includes('lean') || goal.includes('cut') ? -400 : goal.includes('gain') || goal.includes('bulk') ? 350 : 0;
+    const targetCalories = Math.max(1200, estimatedTdee + goalOffset);
+    const targetProtein = Math.round(weight * 2.0);
+    const targetFats = Math.round((targetCalories * 0.25) / 9);
+    const targetCarbs = Math.max(0, Math.round((targetCalories - (targetProtein * 4) - (targetFats * 9)) / 4));
+    
+    const consumedCalories = todayNutrition.calories;
+    const remainingCalories = targetCalories - consumedCalories;
+    const caloriePct = Math.min(100, Math.round((consumedCalories / targetCalories) * 100)) || 0;
+    const proteinPct = Math.min(100, Math.round((todayNutrition.protein / targetProtein) * 100)) || 0;
+    const carbsPct = Math.min(100, Math.round((todayNutrition.carbs / targetCarbs) * 100)) || 0;
+    const fatsPct = Math.min(100, Math.round((todayNutrition.fats / targetFats) * 100)) || 0;
+    const waterTarget = user?.hydration_goal || 2500;
+    const waterPct = Math.min(100, Math.round((hydration / waterTarget) * 100)) || 0;
+
     return (
       <div className="dashboard-grid animate-fade-in">
-        {/* Welcome & Stats */}
-        <div className="glass-panel col-span-12" style={{ padding: '36px', background: 'var(--bg-card)' }}>
+        {/* Welcome Banner */}
+        <div className="glass-panel col-span-12" style={{ padding: '28px 32px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
             <div>
-              <h2 style={{ fontSize: '2.2rem', marginBottom: '8px', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>
-                Welcome back, <span style={{ background: 'var(--gradient-main)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{user?.username}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: '700', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--primary)', background: 'var(--primary-dim)', padding: '3px 9px', borderRadius: '6px' }}>
+                  ADAPTIVE METABOLISM & TRAINING
+                </span>
+              </div>
+              <h2 style={{ fontSize: '2rem', marginBottom: '6px', fontWeight: 800, color: '#fff' }}>
+                Welcome back, <span>{user?.username}</span>
               </h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: '500' }}>Here is your daily fitness summary.</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', fontWeight: '400' }}>
+                Your adaptive nutrition and progressive overload dashboard is active and synchronized.
+              </p>
             </div>
-            <button onClick={() => setIsEditingProfile(true)} className="btn-secondary">
-              Edit Profile
-            </button>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button onClick={() => setIsEditingProfile(true)} className="btn-secondary">
+                <FiSettings style={{ marginRight: '6px' }} /> Metrics & Goal
+              </button>
+              <button onClick={() => setActiveTab('workout')} className="btn-primary">
+                <FiActivity style={{ marginRight: '6px' }} /> Start Workout
+              </button>
+            </div>
           </div>
         </div>
 
+        {/* Primary Metrics Strip */}
         <div className="glass-panel stats-card col-span-3">
-          <span className="stats-label">Weight</span>
+          <span className="stats-label">Current Weight</span>
           <span className="stats-value">
-            {user?.weight || 'N/A'} <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', fontWeight: '500' }}>kg</span>
+            {user?.weight || '—'} <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', fontWeight: '500' }}>kg</span>
           </span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Target: {user?.fitness_goal || 'Lean'}</span>
         </div>
 
         <div className="glass-panel stats-card col-span-3">
-          <span className="stats-label">Height</span>
-          <span className="stats-value">
-            {user?.height || 'N/A'} <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', fontWeight: '500' }}>cm</span>
+          <span className="stats-label">Estimated TDEE</span>
+          <span className="stats-value" style={{ color: '#38bdf8' }}>
+            {estimatedTdee} <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', fontWeight: '500' }}>kcal/day</span>
           </span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Dynamic Expenditure</span>
         </div>
 
         <div className="glass-panel stats-card col-span-3">
-          <span className="stats-label">Goal</span>
-          <span className="stats-value" style={{ fontSize: '1.6rem', fontWeight: 700 }}>{user?.fitness_goal || 'Not Set'}</span>
-        </div>
-
-        <div className="glass-panel stats-card col-span-3">
-          <span className="stats-label">Level / XP</span>
+          <span className="stats-label">Daily Calorie Target</span>
           <span className="stats-value" style={{ color: 'var(--primary)' }}>
+            {targetCalories} <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', fontWeight: '500' }}>kcal</span>
+          </span>
+          <span style={{ fontSize: '0.8rem', color: goalOffset < 0 ? '#f43f5e' : goalOffset > 0 ? '#10b981' : 'var(--text-muted)', marginTop: '4px' }}>
+            {goalOffset < 0 ? `${goalOffset} kcal Deficit` : goalOffset > 0 ? `+${goalOffset} kcal Surplus` : 'Maintenance'}
+          </span>
+        </div>
+
+        <div className="glass-panel stats-card col-span-3">
+          <span className="stats-label">Training Level</span>
+          <span className="stats-value" style={{ color: '#f59e0b' }}>
             Lvl {user?.level || 1}
           </span>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500' }}>
-            {user?.xp || 0} total XP
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {user?.xp || 0} XP Accumulated
           </span>
         </div>
 
-        {/* Calorie Tracking Card */}
-        <div className="glass-panel col-span-12" style={{ padding: '30px' }}>
-          <h3 style={{ marginBottom: '20px', fontSize: '1.25rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>Today's Nutrition Summary</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-            {[
-              { label: 'Protein Target', color: 'var(--success)', val: user?.weight ? `${user.weight * 2}g` : '—' },
-              { label: 'Calorie Target', color: 'var(--primary)', val: user?.weight && user?.height && user?.age ? `${Math.round((10 * user.weight + 6.25 * user.height - 5 * user.age + 5) * 1.55)} kcal` : '—' },
-              { label: 'Water Consumed', color: 'var(--secondary)', val: `${hydration}ml` },
-            ].map(({ label, color, val }) => (
-              <div key={label} style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-                <div style={{ fontSize: '1.8rem', fontWeight: '800', color, fontFamily: 'Outfit, sans-serif' }}>{val}</div>
+        {/* MacroFactor-Style High-Density Adherence Engine */}
+        <div className="glass-panel col-span-8" style={{ padding: '32px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '800', fontFamily: 'Outfit, sans-serif' }}>
+                Nutrition & Macro Adherence
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+                High-precision tracking vs your metabolic targets
+              </p>
+            </div>
+            <span style={{ 
+              fontSize: '0.8rem', 
+              fontWeight: '700', 
+              padding: '6px 12px', 
+              borderRadius: '20px',
+              background: remainingCalories >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
+              color: remainingCalories >= 0 ? '#10b981' : '#f43f5e',
+              border: `1px solid ${remainingCalories >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)'}`
+            }}>
+              {remainingCalories >= 0 ? `${remainingCalories} kcal Remaining` : `${Math.abs(remainingCalories)} kcal Over Target`}
+            </span>
+          </div>
+
+          {/* Calorie Progress Overview */}
+          <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '20px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255, 255, 255, 0.05)', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '10px' }}>
+              <div>
+                <span className="tabular-nums" style={{ fontSize: '2rem', fontWeight: '800', fontFamily: 'Outfit', color: 'var(--text-main)' }}>{consumedCalories}</span>
+                <span style={{ fontSize: '1rem', color: 'var(--text-muted)', marginLeft: '6px' }}>/ {targetCalories} kcal consumed</span>
               </div>
-            ))}
+              <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--primary)' }}>{caloriePct}%</span>
+            </div>
+            <div className="macro-progress-track" style={{ height: '10px' }}>
+              <div className="macro-progress-fill" style={{ width: `${caloriePct}%`, background: 'var(--gradient-main)' }}></div>
+            </div>
+          </div>
+
+          {/* 3 Macro Progress Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            {/* Protein */}
+            <div className="macro-bar-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#10b981', textTransform: 'uppercase' }}>Protein</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{proteinPct}%</span>
+              </div>
+              <div>
+                <span className="tabular-nums" style={{ fontSize: '1.5rem', fontWeight: '800', fontFamily: 'Outfit' }}>{todayNutrition.protein}g</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {targetProtein}g</span>
+              </div>
+              <div className="macro-progress-track">
+                <div className="macro-progress-fill" style={{ width: `${proteinPct}%`, background: '#10b981' }}></div>
+              </div>
+            </div>
+
+            {/* Carbs */}
+            <div className="macro-bar-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#38bdf8', textTransform: 'uppercase' }}>Carbs</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{carbsPct}%</span>
+              </div>
+              <div>
+                <span className="tabular-nums" style={{ fontSize: '1.5rem', fontWeight: '800', fontFamily: 'Outfit' }}>{todayNutrition.carbs}g</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {targetCarbs}g</span>
+              </div>
+              <div className="macro-progress-track">
+                <div className="macro-progress-fill" style={{ width: `${carbsPct}%`, background: '#38bdf8' }}></div>
+              </div>
+            </div>
+
+            {/* Fats */}
+            <div className="macro-bar-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#f59e0b', textTransform: 'uppercase' }}>Fats</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{fatsPct}%</span>
+              </div>
+              <div>
+                <span className="tabular-nums" style={{ fontSize: '1.5rem', fontWeight: '800', fontFamily: 'Outfit' }}>{todayNutrition.fats}g</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {targetFats}g</span>
+              </div>
+              <div className="macro-progress-track">
+                <div className="macro-progress-fill" style={{ width: `${fatsPct}%`, background: '#f59e0b' }}></div>
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button onClick={() => setActiveTab('nutrition')} className="btn-primary">
-              Open Nutrition Log
+            <button onClick={() => setActiveTab('nutrition')} className="btn-primary" style={{ padding: '10px 20px' }}>
+              <FiPlus style={{ marginRight: '6px' }} /> Log Food & Macros
             </button>
-            <button onClick={logWater} className="btn-secondary">
-              Log 250ml Water
+            <button onClick={() => setActiveTab('meal_plan')} className="btn-secondary" style={{ padding: '10px 20px' }}>
+              <FiPieChart style={{ marginRight: '6px' }} /> Open Meal Architecture
             </button>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="glass-panel col-span-8" style={{ padding: '30px' }}>
-          <h3 style={{ marginBottom: '16px', fontSize: '1.25rem' }}>Quick Planners</h3>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button className="btn-primary" onClick={generateWorkoutPlan}>
-              AI Workout Generator
-            </button>
-            <button className="btn-primary" onClick={generateMealPlan} style={{ background: 'var(--gradient-main)' }}>
-              AI Meal Planner
-            </button>
-          </div>
-        </div>
+        {/* Right Side Column: Hydration & Quick Actions */}
+        <div className="col-span-4" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Hydration Tracker Card */}
+          <div className="glass-panel" style={{ padding: '28px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FiDroplet style={{ color: '#38bdf8', fontSize: '1.2rem' }} />
+                <h4 style={{ margin: 0, fontWeight: '700', fontSize: '1.1rem' }}>Hydration Index</h4>
+              </div>
+              <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#38bdf8' }}>{waterPct}%</span>
+            </div>
 
-        <div className="glass-panel col-span-4" style={{ padding: '30px', background: 'rgba(168, 85, 247, 0.03)', borderColor: 'rgba(168, 85, 247, 0.1)' }}>
-          <h3 style={{ fontFamily: 'Outfit', fontWeight: '700' }}>AI Coach</h3>
-          <p style={{ margin: '12px 0 20px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Ask questions, log food pictures, analyze plans.</p>
-          <button className="btn-primary" onClick={() => setActiveTab('chat')} style={{ width: '100%' }}>
-            Start Chat
-          </button>
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '2rem', fontWeight: '800', fontFamily: 'Outfit' }}>
+                {hydration} <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '500' }}>/ {waterTarget} ml</span>
+              </div>
+            </div>
+
+            <div className="macro-progress-track" style={{ height: '8px', marginBottom: '20px' }}>
+              <div className="macro-progress-fill" style={{ width: `${waterPct}%`, background: 'linear-gradient(90deg, #0284c7, #38bdf8)' }}></div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <button onClick={() => logWater(250)} className="btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
+                + 250ml
+              </button>
+              <button onClick={() => logWater(500)} className="btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
+                + 500ml
+              </button>
+            </div>
+          </div>
+
+          {/* Intelligent Insights & Fast Navigation */}
+          <div className="glass-panel" style={{ padding: '24px', background: 'rgba(99, 102, 241, 0.04)', borderColor: 'rgba(99, 102, 241, 0.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <FiZap style={{ color: 'var(--primary)', fontSize: '1.1rem' }} />
+              <h4 style={{ margin: 0, fontWeight: '700', fontSize: '1.05rem', color: '#fff' }}>Training & Body Insights</h4>
+            </div>
+            <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: '0.86rem', lineHeight: '1.5' }}>
+              Log session volumes, track strength trends via Epley 1RM, or analyze macro compliance.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button className="btn-primary" onClick={generateWorkoutPlan} style={{ width: '100%', justifyContent: 'center' }}>
+                Dynamic Training Split
+              </button>
+              <button className="btn-secondary" onClick={() => setActiveTab('analytics')} style={{ width: '100%', justifyContent: 'center' }}>
+                <FiTrendingUp style={{ marginRight: '6px' }} /> Analytics & Composition
+              </button>
+              <button className="btn-glass" onClick={() => setActiveTab('chat')} style={{ width: '100%', justifyContent: 'center' }}>
+                Consult Coach & Chat
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
